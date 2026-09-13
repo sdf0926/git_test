@@ -8,9 +8,9 @@
 <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
-<script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
-<script src="https://surikov.github.io/webaudiofontdata/sound/12838_1_JCLive_sf2_file.js"></script>
-<script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_FluidR3_GM_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_LK_AcousticSteel_SF2_file.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -537,7 +537,7 @@ guitarPromise.then(i => { guitarInst = i; });
 stringPromise.then(i => { stringInst = i; });
 
 // Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont.
-const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', snare: '_drum_38_1_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file' };
+const DRUM = { kick: '_drum_35_0_FluidR3_GM_sf2_file', snare: '_drum_38_0_FluidR3_GM_sf2_file', hihat: '_drum_42_0_FluidR3_GM_sf2_file' };
 Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
 
 function midi(pc, oct) { return pc + 12 * (oct + 1); } // oct=4 -> C4=60
