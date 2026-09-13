@@ -189,11 +189,17 @@ function childrenTag(el, tag) {
 }
 
 function parseHarmony(hEl) {
-  const info = hEl.querySelector(':scope > harmonyInfo');
-  if (!info) return null;
+  // MuseScore 3 nests root/bass/name inside a <harmonyInfo> child; MuseScore 4
+  // puts them directly on <Harmony> and renamed <bass> to <base>. Without this
+  // fallback, every chord symbol in a MuseScore-4-exported file silently fails
+  // to parse (harmonyInfo never matches), so no chord is ever detected -- and
+  // since bass/guitar/pad all key off the detected harmony, they play nothing
+  // for the whole song even though melody and drums (harmony-independent)
+  // work fine.
+  const info = hEl.querySelector(':scope > harmonyInfo') || hEl;
   const rootTpc = parseInt(textOf(info, 'root'), 10);
   if (Number.isNaN(rootTpc)) return null;
-  const bassTxt = textOf(info, 'bass');
+  const bassTxt = textOf(info, 'base') !== null ? textOf(info, 'base') : textOf(info, 'bass');
   const bassTpc = bassTxt !== null ? parseInt(bassTxt, 10) : null;
   const quality = textOf(info, 'name') || '';
   const rootName = tpcToName(rootTpc);
