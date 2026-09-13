@@ -253,8 +253,8 @@
 <h2 class="section">어쿠스틱 기타</h2>
 <div class="card">
   <div class="info">
-    <h2>어쿠스틱 기타 — Steel (MusyngKite, 확정)</h2>
-    <p>GM 프로그램 25번. index.html에 들어가는 톤이 확정되었고, 아래에서 스트로크 리듬 패턴만 비교합니다.</p>
+    <h2>어쿠스틱 기타 — Steel (LK_AcousticSteel, 확정)</h2>
+    <p>GM 프로그램 25번. index.html에 들어가는 톤(LK_AcousticSteel)이 확정되었고, 아래에서 스트로크 리듬 패턴만 비교합니다.</p>
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
     <button data-strum-pattern="syncopated">패턴 1: 당김음 (현재)</button>
@@ -420,8 +420,9 @@ document.querySelectorAll('button[data-drum-bank]').forEach(btn => {
   btn.addEventListener('click', () => playDrumBank(btn.dataset.drumBank, btn));
 });
 
-// strum rhythm comparison -- same guitar tone (Steel, MusyngKite), 3
-// different eighth-note strum patterns, 2 bars each so the groove is clear.
+// strum rhythm comparison -- same guitar tone (LK_AcousticSteel, the bank
+// actually used in index.html), 3 different eighth-note strum patterns,
+// 2 bars each so the groove is clear.
 const STRUM_PATTERNS = {
   syncopated: [[0, false], [2, false], [3, true], [4, false], [6, false], [7, true]],
   steady: [[0, false], [2, false], [4, false], [6, false]],
@@ -430,19 +431,9 @@ const STRUM_PATTERNS = {
 async function playStrumPattern(patternName, btn) {
   btn.disabled = true;
   if (ac.state === 'suspended') await ac.resume();
-  const inst = await getInstrument('acoustic_guitar_steel', 'MusyngKite');
   const now = ac.currentTime + 0.05;
-  const eighth = 0.25;
   const chords = [[48, 55, 60, 64], [43, 50, 55, 59]]; // C-ish, then G-ish
-  const pattern = STRUM_PATTERNS[patternName];
-  for (let bar = 0; bar < 2; bar++) {
-    const chord = chords[bar % chords.length];
-    pattern.forEach(([step, up]) => {
-      const t = now + bar * 8 * eighth + step * eighth;
-      const order = up ? [...chord].reverse() : chord;
-      order.forEach((n, i) => inst.play(midiToNoteName(n), t + i * 0.015, { duration: eighth * 1.6 }));
-    });
-  }
+  scheduleGuitarStrum(GUITAR_BANKS.lk.name, chords, STRUM_PATTERNS[patternName], now, 0.25);
   setTimeout(() => { btn.disabled = false; }, 5000);
 }
 document.querySelectorAll('button[data-strum-pattern]').forEach(btn => {
