@@ -10,6 +10,10 @@
 <script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12838_2_JCLive_sf2_file.js"></script>
+<!-- 전체 합주 미리듣기용 FluidR3_GM 드럼킷 -->
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_FluidR3_GM_sf2_file.js"></script>
 <!-- 베이스(GM 33, Electric Bass finger) 사운드뱅크 비교용 -->
 <script src="https://surikov.github.io/webaudiofontdata/sound/0330_FluidR3_GM_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0330_GeneralUserGS_sf2_file.js"></script>
@@ -230,6 +234,11 @@ const wafPlayer = new WebAudioFontPlayer();
 const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file', snare: '_drum_38_2_JCLive_sf2_file' };
 Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
 
+// separate FluidR3_GM kit just for the "전체 합주" ensemble preview, so the
+// dedicated drum-comparison card above keeps demonstrating its JCLive takes
+const ENSEMBLE_DRUM = { kick: '_drum_35_0_FluidR3_GM_sf2_file', hihat: '_drum_42_0_FluidR3_GM_sf2_file', snare: '_drum_38_0_FluidR3_GM_sf2_file' };
+Object.values(ENSEMBLE_DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
+
 // Different sf2 sound-bank recordings of the SAME GM program number, loaded
 // directly via WebAudioFont (bypassing soundfont-player, which only ships
 // two curated banks). Electric Bass finger = GM 33, Acoustic Guitar steel = GM 25.
@@ -259,16 +268,17 @@ snareVerb.buffer = makeReverbImpulse(0.6, 3.2);
 const snareVerbGain = ac.createGain(); snareVerbGain.gain.value = 0.22;
 snareVerb.connect(snareVerbGain).connect(ac.destination);
 
-function scheduleDrumPattern(now, bars) {
+function scheduleDrumPattern(now, bars, drum) {
+  drum = drum || DRUM;
   const eighth = 0.25;
   for (let bar = 0; bar < bars; bar++) {
     for (let i = 0; i < 8; i++) {
       const t = now + bar * 8 * eighth + i * eighth;
-      wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.hihat], t, 42, 0.12, 0.18);
-      if (i % 4 === 0) wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.kick], t, 35, 0.3, 0.5);
+      wafPlayer.queueWaveTable(ac, instrumentBus, window[drum.hihat], t, 42, 0.12, 0.18);
+      if (i % 4 === 0) wafPlayer.queueWaveTable(ac, instrumentBus, window[drum.kick], t, 35, 0.3, 0.5);
       if (i % 4 === 2) {
-        wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.snare], t, 38, 0.2, 0.35); // dry (through shared room)
-        wafPlayer.queueWaveTable(ac, snareVerb, window[DRUM.snare], t, 38, 0.2, 0.35);     // extra ring send
+        wafPlayer.queueWaveTable(ac, instrumentBus, window[drum.snare], t, 38, 0.2, 0.35); // dry (through shared room)
+        wafPlayer.queueWaveTable(ac, snareVerb, window[drum.snare], t, 38, 0.2, 0.35);     // extra ring send
       }
     }
   }
@@ -533,7 +543,7 @@ async function playEnsemble(btn) {
   statusEl.textContent = '악기 로딩 중...';
   const [salamander, guitar, strings] = await Promise.all([
     Promise.race([salamanderReady, new Promise(r => setTimeout(() => r(null), 10000))]),
-    getInstrument('acoustic_guitar_steel', 'MusyngKite'),
+    getInstrument('acoustic_guitar_steel', 'FluidR3_GM'),
     getInstrument('string_ensemble_1')
   ]);
   const piano = salamander || await getInstrument('acoustic_grand_piano');
@@ -554,7 +564,7 @@ async function playEnsemble(btn) {
     wafPlayer.queueWaveTable(ac, instrumentBus, window[BASS_BANKS.fluid.name], now + i * 0.4, n, 0.38, 0.5);
   });
 
-  // guitar strum (syncopated pattern, 2 bars, MusyngKite steel)
+  // guitar strum (syncopated pattern, 2 bars, FluidR3_GM steel)
   const chords = [[52,57,60,64,67],[53,57,60,65,69]];
   chords.forEach((chord, bar) => {
     STRUM_PATTERNS.syncopated.forEach(([step, up]) => {
@@ -565,12 +575,14 @@ async function playEnsemble(btn) {
   });
 
   // pad (GM string ensemble wash, same progression as the piano melody's harmony)
+  // kept quiet -- a 3-note sustained chord reads much louder than single
+  // plucked/struck notes, so it needs a lower gain to sit as background wash
   PAD_PROG.forEach((chord, i) => {
-    chord.forEach(n => strings.play(midiToNoteName(n), now + i * 1.0, { duration: 1.3 }));
+    chord.forEach(n => strings.play(midiToNoteName(n), now + i * 1.0, { duration: 1.3, gain: 0.4 }));
   });
 
-  // drums (2 bars)
-  scheduleDrumPattern(now, 2);
+  // drums (2 bars, FluidR3_GM kit)
+  scheduleDrumPattern(now, 2, ENSEMBLE_DRUM);
 
   setTimeout(() => { btn.disabled = false; }, 5000);
 }
