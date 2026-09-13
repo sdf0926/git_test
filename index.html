@@ -233,7 +233,13 @@ async function parseScore(xmlText) {
   if (doc.querySelector('parsererror')) throw new Error('XML 파싱 오류');
   const division = parseInt(textOf(doc.querySelector('Score'), 'Division') || '480', 10);
 
-  const staff = doc.querySelector('Score > Staff[id], Staff[id]');
+  // Every MuseScore Part also embeds a metadata <Staff id="N"> of its own
+  // (StaffType/bracket/barLineSpan, no Measure children) *before* the real
+  // musical <Staff id="N"> that's a direct child of <Score>. A combined
+  // 'Score > Staff[id], Staff[id]' selector matches the first one in
+  // document order -- i.e. that empty metadata staff -- so the real,
+  // Measure-bearing staff has to be tried first, on its own.
+  const staff = doc.querySelector('Score > Staff[id]') || doc.querySelector('Staff[id]');
   if (!staff) throw new Error('Staff를 찾을 수 없습니다');
 
   const vbox = staff.querySelector(':scope > VBox');
