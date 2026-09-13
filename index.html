@@ -551,6 +551,22 @@ function tickToSec(ticksVal, division) {
   return (ticksVal / division) * (60 / bpm);
 }
 
+// Maps a chord-symbol quality string (as read straight from the score, e.g.
+// '', 'm', 'm7', '7', 'dim', 'sus4') to semitone offsets from the root.
+// The old inline check was `/^m/.test(quality)` for "minor" -- which also
+// matches 'maj7' (it starts with 'm' too!), so a Cmaj7 got its minor third
+// instead of major. It also always used a perfect 5th and never added a 7th,
+// so an m7/7 chord's pad/guitar voicing was really just its bare triad.
+function chordIntervals(quality) {
+  if (/^dim/.test(quality)) return { third: 3, fifth: 6, seventh: /7/.test(quality) ? 9 : null };
+  if (/^aug/.test(quality)) return { third: 4, fifth: 8, seventh: null };
+  if (/^sus4/.test(quality)) return { third: 5, fifth: 7, seventh: null };
+  if (/^sus2/.test(quality)) return { third: 2, fifth: 7, seventh: null };
+  const third = /^m(?!aj)/.test(quality) ? 3 : 4;
+  const seventh = /maj7/.test(quality) ? 11 : /7/.test(quality) ? 10 : null;
+  return { third, fifth: 7, seventh };
+}
+
 function harmonyAt(m, tickPos) {
   // last harmony whose tick <= tickPos, else carried-in harmony from previous measures
   let h = m.activeHarmonyAtStart;
@@ -601,8 +617,9 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
   // --- pad (sustained chord wash, GM string ensemble) ---
   if (wantPad && stringInst) {
     harmonySegments(m).forEach(seg => {
-      const thirdOffset = /^m/.test(seg.h.quality) ? 3 : 4;
-      const pcs = [seg.h.rootPc, (seg.h.rootPc + thirdOffset) % 12, (seg.h.rootPc + 7) % 12];
+      const { third, fifth, seventh } = chordIntervals(seg.h.quality);
+      const pcs = [seg.h.rootPc, (seg.h.rootPc + third) % 12, (seg.h.rootPc + fifth) % 12];
+      if (seventh !== null) pcs.push((seg.h.rootPc + seventh) % 12);
       const segStart = startTime + tickToSec(seg.start, m.division);
       const segDur = tickToSec(seg.end - seg.start, m.division);
       pcs.forEach(pc => {
@@ -640,8 +657,8 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
       if (isTransition && t >= fillZoneStart) return; // leave the fill bar clear
       const h = harmonyAt(m, Math.round(t / quarterSec * m.division));
       if (!h) return;
-      const thirdOffset = /^m/.test(h.quality) ? 3 : 4;
-      const pcs = [h.rootPc, (h.rootPc + 7) % 12, (h.rootPc + thirdOffset) % 12, (h.rootPc + 7) % 12];
+      const { third, fifth, seventh } = chordIntervals(h.quality);
+      const pcs = [h.rootPc, (h.rootPc + fifth) % 12, (h.rootPc + third) % 12, seventh !== null ? (h.rootPc + seventh) % 12 : (h.rootPc + fifth) % 12];
       const octs = [3, 3, 4, 4];
       const order = up ? [3, 2, 1, 0] : [0, 1, 2, 3];
       const jitter = (Math.random() - 0.5) * 0.012;
