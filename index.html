@@ -583,7 +583,7 @@ function voiceChord(rootPc, intervals, prevNotes) {
   if (intervals.seventh !== null) pcs.push((rootPc + intervals.seventh) % 12);
   const center = (prevNotes && prevNotes.length)
     ? prevNotes.reduce((a, b) => a + b, 0) / prevNotes.length
-    : midi(rootPc, 3);
+    : midi(rootPc, 4); // one octave brighter than before -- octave 3 sat low/heavy, close to the bass's range
   return pcs.map(pc => pc + 12 * Math.round((center - pc) / 12));
 }
 
