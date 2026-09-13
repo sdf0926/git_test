@@ -523,19 +523,22 @@ const guitarPromise = Promise.resolve({
   }
 });
 
-// Pad: GM String Ensemble 1 (soundfont sample) instead of a synth wash --
-// same soft-sustain-under-the-chords role, chosen after comparing it
-// against the synth pad in midi_demo.html. It's a 3-note chord held for the
-// whole harmony segment (not a quick single note), so even a modest gain
-// here adds up to a wall of sound once the chords are actually playing --
-// keep it low, it's meant to sit under everything else, not compete with it.
-const stringPromise = Soundfont.instrument(ac, 'string_ensemble_1', { gain: 1.1, destination: roomBus });
+// Pad: back to a synth wash (fatsine) -- the GM string sample read as too
+// dark/heavy ("minor"/"sagging") even after fixing its voicing, which
+// pointed at the sample's own tone color rather than a wrong-note bug.
+// A soft sustained pad under the chords -- common in Korean CCM live-band
+// arrangements (strings/pad wash under piano+rhythm section). Very quiet;
+// it's atmosphere, not a lead voice.
+const padSynth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: 'fatsine', count: 3, spread: 25 },
+  envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
+  volume: -10
+}).connect(roomBus);
 
-let pianoInst = null, bassInst = null, guitarInst = null, stringInst = null;
+let pianoInst = null, bassInst = null, guitarInst = null;
 pianoPromise.then(i => { pianoInst = i; });
 bassPromise.then(i => { bassInst = i; });
 guitarPromise.then(i => { guitarInst = i; });
-stringPromise.then(i => { stringInst = i; });
 
 // Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont.
 const DRUM = { kick: '_drum_35_0_FluidR3_GM_sf2_file', snare: '_drum_38_0_FluidR3_GM_sf2_file', hihat: '_drum_42_0_FluidR3_GM_sf2_file' };
@@ -634,8 +637,8 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
     });
   }
 
-  // --- pad (sustained chord wash, GM string ensemble) ---
-  if (wantPad && stringInst) {
+  // --- pad (sustained chord wash, synth) ---
+  if (wantPad) {
     harmonySegments(m).forEach(seg => {
       const intervals = chordIntervals(seg.h.quality);
       // voiceChord picks each tone's octave relative to the previous chord
@@ -646,9 +649,7 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
       padPrevNotes = notes;
       const segStart = startTime + tickToSec(seg.start, m.division);
       const segDur = tickToSec(seg.end - seg.start, m.division);
-      notes.forEach(note => {
-        stringInst.play(midiToNoteName(note), segStart, { duration: segDur * 0.95 });
-      });
+      padSynth.triggerAttackRelease(notes.map(midiToNoteName), segDur * 0.95, segStart);
     });
   }
 
@@ -984,10 +985,10 @@ function autoSuggestSections() {
 async function startPlayback() {
   if (!score) return;
   await Tone.start();
-  if (!pianoInst || !bassInst || !guitarInst || !stringInst) {
+  if (!pianoInst || !bassInst || !guitarInst) {
     document.getElementById('status').textContent = '악기 음원 로딩 중...';
     await Promise.race([
-      Promise.all([pianoPromise, bassPromise, guitarPromise, stringPromise]),
+      Promise.all([pianoPromise, bassPromise, guitarPromise]),
       new Promise(r => setTimeout(r, 8000))
     ]);
     document.getElementById('status').textContent = '';
