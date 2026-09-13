@@ -409,6 +409,7 @@ let curIdx = 0;           // measure currently sounding (0-based)
 let scheduleIdx = 0;      // next measure index to schedule
 let nextTime = 0;         // transport-time (s) when scheduleIdx should start
 let lookaheadId = null;
+let padPrevNotes = null; // last chord's actual MIDI notes, for voice-leading the next one
 
 // ---------- Audio engines ----------
 // Melody/bass/guitar use real GM soundfont samples (the same engine behind
@@ -567,6 +568,25 @@ function chordIntervals(quality) {
   return { third, fifth: 7, seventh };
 }
 
+// Picks the octave of each chord tone that lands closest to `prevNotes`
+// (the previous chord's actual notes) instead of always resetting to the
+// same fixed octave -- "voicing" in the arranging sense: which specific
+// octave each chord tone sits in. Without this every chord jumps back to
+// the same register (root always ~middle C, etc.), which is a big part of
+// why a pad can sound stiff/robotic even when the chords themselves are
+// correct. This keeps the pad hovering in one comfortable range and moving
+// as little as possible between chords (smooth voice leading), the way a
+// real string/pad arrangement holds common tones and shifts by step
+// instead of leaping to a fresh root-position chord every time.
+function voiceChord(rootPc, intervals, prevNotes) {
+  const pcs = [rootPc, (rootPc + intervals.third) % 12, (rootPc + intervals.fifth) % 12];
+  if (intervals.seventh !== null) pcs.push((rootPc + intervals.seventh) % 12);
+  const center = (prevNotes && prevNotes.length)
+    ? prevNotes.reduce((a, b) => a + b, 0) / prevNotes.length
+    : midi(rootPc, 3);
+  return pcs.map(pc => pc + 12 * Math.round((center - pc) / 12));
+}
+
 function harmonyAt(m, tickPos) {
   // last harmony whose tick <= tickPos, else carried-in harmony from previous measures
   let h = m.activeHarmonyAtStart;
@@ -617,15 +637,13 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
   // --- pad (sustained chord wash, GM string ensemble) ---
   if (wantPad && stringInst) {
     harmonySegments(m).forEach(seg => {
-      const { third, fifth, seventh } = chordIntervals(seg.h.quality);
-      // Semitone offsets straight up from the root MIDI note -- not mod-12
-      // pitch classes independently folded into octave 3, which could put
-      // e.g. the third BELOW the root (whenever rootPc + third wraps past
-      // 12) and voice what's actually a major chord as a jumbled cluster
-      // that reads as murky/minor-ish rather than a clean triad.
-      const rootMidi = midi(seg.h.rootPc, 3) + transpose;
-      const notes = [rootMidi, rootMidi + third, rootMidi + fifth];
-      if (seventh !== null) notes.push(rootMidi + seventh);
+      const intervals = chordIntervals(seg.h.quality);
+      // voiceChord picks each tone's octave relative to the previous chord
+      // (voice leading) instead of always resetting to the same fixed
+      // octave, which read as stiff/robotic even once the pitches themselves
+      // were correct.
+      const notes = voiceChord(seg.h.rootPc, intervals, padPrevNotes).map(n => n + transpose);
+      padPrevNotes = notes;
       const segStart = startTime + tickToSec(seg.start, m.division);
       const segDur = tickToSec(seg.end - seg.start, m.division);
       notes.forEach(note => {
@@ -975,7 +993,7 @@ async function startPlayback() {
     document.getElementById('status').textContent = '';
   }
   playing = true;
-  curIdx = 0; scheduleIdx = 0; pendingJump = null; repeatMode = 'none';
+  curIdx = 0; scheduleIdx = 0; pendingJump = null; repeatMode = 'none'; padPrevNotes = null;
   updateRepeatButtons();
   Tone.getTransport().stop();
   Tone.getTransport().seconds = 0;
