@@ -468,6 +468,7 @@ function loadSalamanderPiano() {
       urls: SALAMANDER_URLS,
       baseUrl: 'https://tonejs.github.io/audio/salamander/',
       release: 1,
+      volume: 9, // Tone.Sampler has no plain gain option -- this is +9dB (~2.8x)
       onload: () => resolve(sampler)
     });
     sampler.connect(roomBus);
@@ -486,7 +487,7 @@ const pianoPromise = Promise.race([
   }
   return Soundfont.instrument(ac, 'acoustic_grand_piano', { gain: 3.5, destination: roomBus });
 });
-const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 3.2, destination: roomBus });
+const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 4.0, destination: roomBus });
 
 function midiToNoteName(m) {
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -506,12 +507,13 @@ function noteNameToMidi(name) {
 // soundfont-player instruments use, converting the name back to a pitch.
 const GUITAR_WAVETABLE = '_tone_0250_LK_AcousticSteel_SF2_file';
 wafPlayer.loader.decodeAfterLoading(ac, GUITAR_WAVETABLE);
-// WebAudioFont's queueWaveTable volume isn't on the same scale as
-// soundfont-player's gain (different engines, different sample
-// normalization) -- the strum gains below (0.5-0.95) were calibrated for
-// soundfont-player and came out too quiet through WebAudioFont, so they're
-// boosted here rather than re-tuning every call site.
-const GUITAR_GAIN_BOOST = 2.2;
+// A strum hits 4 strings at once, so its total loudness is roughly 4x a
+// single note at the same per-note volume -- that's on top of whatever
+// engine-scale difference there is between WebAudioFont and soundfont-player.
+// The first guess here (2.2x) badly overshot once the chords actually started
+// playing (see the harmony-parsing fix) and buried melody/bass under the
+// strums; this pulls it back down.
+const GUITAR_GAIN_BOOST = 0.55;
 const guitarPromise = Promise.resolve({
   play: (name, time, opts) => {
     const dur = (opts && opts.duration) || 1;
@@ -522,10 +524,11 @@ const guitarPromise = Promise.resolve({
 
 // Pad: GM String Ensemble 1 (soundfont sample) instead of a synth wash --
 // same soft-sustain-under-the-chords role, chosen after comparing it
-// against the synth pad in midi_demo.html. Boosted like piano/bass above --
-// string samples are recorded much softer than piano/bass and were barely
-// audible under the rest of the mix at the default (unboosted) gain.
-const stringPromise = Soundfont.instrument(ac, 'string_ensemble_1', { gain: 2.8, destination: roomBus });
+// against the synth pad in midi_demo.html. It's a 3-note chord held for the
+// whole harmony segment (not a quick single note), so even a modest gain
+// here adds up to a wall of sound once the chords are actually playing --
+// keep it low, it's meant to sit under everything else, not compete with it.
+const stringPromise = Soundfont.instrument(ac, 'string_ensemble_1', { gain: 1.1, destination: roomBus });
 
 let pianoInst = null, bassInst = null, guitarInst = null, stringInst = null;
 pianoPromise.then(i => { pianoInst = i; });
