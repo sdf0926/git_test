@@ -4,17 +4,34 @@
 <meta charset="UTF-8">
 <title>GM(미디) 음원 비교 데모</title>
 <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12838_2_JCLive_sf2_file.js"></script>
+<!-- 베이스(GM 33, Electric Bass finger) 사운드뱅크 비교용 -->
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_GeneralUserGS_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_Aspirin_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_Chaos_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0330_SBLive_sf2.js"></script>
+<!-- 어쿠스틱 기타(GM 25, Acoustic Guitar steel) 사운드뱅크 비교용 -->
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_GeneralUserGS_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_Aspirin_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_Chaos_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_Acoustic_Guitar_sf2_file.js"></script>
 <style>
   body {
     margin: 0; padding: 24px; background: #17181a; color: #ececea;
     font-family: -apple-system, "Malgun Gothic", "맑은 고딕", sans-serif;
   }
   h1 { font-size: 20px; margin-bottom: 4px; }
-  p.desc { color: #8c8a85; font-size: 14px; margin-top: 0; margin-bottom: 24px; }
+  h2.section { font-size: 14px; color: #6f6d68; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  h2.section:first-of-type { margin-top: 8px; }
+  p.desc { color: #8c8a85; font-size: 14px; margin-top: 0; margin-bottom: 20px; }
   .card {
     border: 1px solid #3a3a3c; border-radius: 6px; padding: 16px; margin-bottom: 12px;
     background: #1f2023; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
@@ -23,13 +40,21 @@
   .card > div[style] { flex: 0 1 auto; }
   .card h2 { margin: 0 0 4px; font-size: 16px; }
   .card p { margin: 0; font-size: 13px; color: #8c8a85; }
+  .card.hero {
+    background: #241f16; border-color: #7a5b30; padding: 20px;
+  }
+  .card.hero h2 { font-size: 18px; color: #f0d9ad; }
   button {
     padding: 10px 20px; border-radius: 4px; border: 1px solid #3a3a3c; font-size: 14px; font-weight: 600;
     cursor: pointer; background: #26272b; color: #ececea; white-space: nowrap;
   }
   button:hover { background: #303236; }
   button:disabled { opacity: 0.5; cursor: default; }
-  #status { font-size: 13px; color: #d99a44; margin-bottom: 16px; }
+  button.playAll {
+    padding: 14px 26px; font-size: 15px; background: #d99a44; color: #1a1509; border-color: #d99a44;
+  }
+  button.playAll:hover { background: #e3ab5c; }
+  #status { font-size: 13px; color: #d99a44; margin-bottom: 16px; min-height: 1.2em; }
 </style>
 </head>
 <body>
@@ -37,34 +62,71 @@
 <h1>GM(General MIDI) 음원 비교 데모</h1>
 <p class="desc">
   미가엘 같은 반주기가 쓰는 것과 같은 계열의 표준 GM 음원(웨이브테이블 칩 방식)입니다.
-  버튼을 눌러 직접 들어보고, 지금 만들고 있는 프로토타입(index.html)의 소리와 비교해보세요.
+  아래 "전체 합주" 버튼으로 먼저 전체 사운드를 한번에 들어보고, 그 다음 각 악기별 카드에서
+  음원/샘플뱅크를 하나씩 눌러보며 세부적으로 비교해보세요. 모든 소리는 같은 리버브(공간감)를
+  공유해서, 서로 다른 음원이라도 한 공간에서 함께 연주하는 느낌으로 들립니다.
 </p>
 <div id="status"></div>
 
-<div class="card">
+<div class="card hero">
   <div class="info">
-    <h2>피아노 (코드) — Acoustic Grand Piano</h2>
-    <p>GM 프로그램 0번. 블록 코드로 화성을 테스트합니다.</p>
+    <h2>🎬 전체 합주 먼저 들어보기 (사운드 테스트)</h2>
+    <p>피아노(Salamander Grand Piano) + 베이스 + 기타 + 패드 + 드럼을 한번에 재생합니다. 개별 비교 전에 전체적인 톤/공간감을 먼저 확인하세요.</p>
   </div>
-  <button data-inst="acoustic_grand_piano" data-kind="chord">재생</button>
+  <button class="playAll" id="ensembleBtn">▶ 다같이 재생</button>
 </div>
 
+<h2 class="section">피아노 — Salamander Grand Piano로 교체</h2>
 <div class="card">
   <div class="info">
-    <h2>피아노 (멜로디) — Acoustic Grand Piano</h2>
-    <p>같은 음색을 단선율로 테스트합니다. index.html에서 실제로 쓰는 방식(악보 멜로디 그대로)에 더 가깝습니다.</p>
+    <h2>피아노 (신규 vs 기존)</h2>
+    <p>새로 적용한 Salamander Grand Piano(왼쪽 2개)와 기존 GM 소프트폰트 Acoustic Grand Piano(오른쪽 2개, MusyngKite)를 같은 코드/멜로디로 비교합니다.</p>
   </div>
-  <button data-inst="acoustic_grand_piano" data-kind="melody">재생</button>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-piano="salamander" data-kind="chord">Salamander · 코드</button>
+    <button data-piano="salamander" data-kind="melody">Salamander · 멜로디</button>
+    <button data-inst="acoustic_grand_piano" data-kind="chord">기존(MusyngKite) · 코드</button>
+    <button data-inst="acoustic_grand_piano" data-kind="melody">기존(MusyngKite) · 멜로디</button>
+  </div>
 </div>
 
+<h2 class="section">패드 — 신스 vs GM 스트링 샘플</h2>
+<div class="card">
+  <div class="info">
+    <h2>패드 질감 비교</h2>
+    <p>index.html이 현재 쓰는 신스 패드(fatsine)와, 같은 코드 진행을 GM 스트링 샘플(string_ensemble_1)로 연주한 버전을 비교합니다. 같은 화성(C-F-G-C)을 씁니다.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-pad="fatsine">신스 패드 (fatsine)</button>
+    <button data-pad="string">GM 스트링 (string_ensemble_1)</button>
+  </div>
+</div>
+
+<h2 class="section">베이스</h2>
 <div class="card">
   <div class="info">
     <h2>베이스 — Electric Bass (finger)</h2>
-    <p>GM 프로그램 33번. 반주기에서 흔히 쓰는 기본 일렉 베이스 음색입니다.</p>
+    <p>GM 프로그램 33번. 현재 index.html이 쓰는 기본 음색(MusyngKite)입니다.</p>
   </div>
   <button data-inst="electric_bass_finger" data-kind="bassline">재생</button>
 </div>
 
+<div class="card">
+  <div class="info">
+    <h2>베이스 — 다른 사운드뱅크 비교 (WebAudioFont)</h2>
+    <p>같은 GM 33번 음색을, 서로 다른 sf2 사운드뱅크 6종으로 비교합니다. 같은 베이스라인을 씁니다.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-bass-bank="fluid">FluidR3_GM</button>
+    <button data-bass-bank="gug">GeneralUserGS</button>
+    <button data-bass-bank="jclive">JCLive</button>
+    <button data-bass-bank="aspirin">Aspirin</button>
+    <button data-bass-bank="chaos">Chaos</button>
+    <button data-bass-bank="sblive">SBLive</button>
+  </div>
+</div>
+
+<h2 class="section">드럼</h2>
 <div class="card">
   <div class="info">
     <h2>드럼 — 기본 스네어 (다른 녹음, 울림 추가)</h2>
@@ -73,6 +135,7 @@
   <button id="drumBtn">재생</button>
 </div>
 
+<h2 class="section">어쿠스틱 기타</h2>
 <div class="card">
   <div class="info">
     <h2>어쿠스틱 기타 — Steel (MusyngKite, 확정)</h2>
@@ -87,6 +150,22 @@
 
 <div class="card">
   <div class="info">
+    <h2>어쿠스틱 기타 — 다른 사운드뱅크 비교 (WebAudioFont)</h2>
+    <p>같은 GM 25번 음색을, 서로 다른 sf2 사운드뱅크 6종으로 비교합니다. 같은 단순 다운스트럼 패턴을 씁니다.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-guitar-bank="fluid">FluidR3_GM</button>
+    <button data-guitar-bank="gug">GeneralUserGS</button>
+    <button data-guitar-bank="jclive">JCLive</button>
+    <button data-guitar-bank="aspirin">Aspirin</button>
+    <button data-guitar-bank="chaos">Chaos</button>
+    <button data-guitar-bank="acoustic">Acoustic_Guitar</button>
+  </div>
+</div>
+
+<h2 class="section">일렉 기타</h2>
+<div class="card">
+  <div class="info">
     <h2>일렉 기타 — 부드러운 파워코드 (Overdriven Guitar)</h2>
     <p>GM 프로그램 30번. 클린 톤 대신 살짝 드라이브가 걸린 파워코드(루트+5도) 느낌으로 바꿨습니다.</p>
   </div>
@@ -96,17 +175,12 @@
 <script>
 (function () {
 "use strict";
-const ac = new (window.AudioContext || window.webkitAudioContext)();
+// Tone.js's own AudioContext -- so the Salamander piano sampler, the pad
+// synth, and every soundfont-player/WebAudioFont instrument all live on one
+// context and can be wired into the same reverb bus below.
+const ac = Tone.getContext().rawContext;
 const cache = {};
 const statusEl = document.getElementById('status');
-
-// real GM drum-kit samples (kick/snare/hihat), via WebAudioFont -- the
-// simple soundfont-player library only covers the 128 melodic GM
-// instruments, not the channel-10 percussion map. Snare is the "different
-// recording" take (38_2), not the original (38_1).
-const wafPlayer = new WebAudioFontPlayer();
-const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file', snare: '_drum_38_2_JCLive_sf2_file' };
-Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
 
 function makeReverbImpulse(seconds, decay) {
   const rate = ac.sampleRate;
@@ -121,28 +195,74 @@ function makeReverbImpulse(seconds, decay) {
   return impulse;
 }
 
-// small reverb send just for the snare -- a bit of "ring" tail, kept short
+// Shared "room" bus -- every instrument on this page (piano, pad, bass,
+// guitar, drums) sends its dry signal through here, plus a copy into one
+// shared convolver. Using the SAME impulse for everything is what makes
+// A/B-ing different instruments still feel like they're in one room
+// together, instead of each sounding dry-mixed in its own bubble.
+const instrumentBus = ac.createGain();
+instrumentBus.connect(ac.destination);
+const roomConvolver = ac.createConvolver();
+roomConvolver.buffer = makeReverbImpulse(1.8, 2.4);
+const roomWet = ac.createGain(); roomWet.gain.value = 0.16;
+instrumentBus.connect(roomConvolver);
+roomConvolver.connect(roomWet).connect(ac.destination);
+
+// real GM drum-kit samples (kick/snare/hihat), via WebAudioFont -- the
+// simple soundfont-player library only covers the 128 melodic GM
+// instruments, not the channel-10 percussion map. Snare is the "different
+// recording" take (38_2), not the original (38_1).
+const wafPlayer = new WebAudioFontPlayer();
+const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file', snare: '_drum_38_2_JCLive_sf2_file' };
+Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
+
+// Different sf2 sound-bank recordings of the SAME GM program number, loaded
+// directly via WebAudioFont (bypassing soundfont-player, which only ships
+// two curated banks). Electric Bass finger = GM 33, Acoustic Guitar steel = GM 25.
+const BASS_BANKS = {
+  fluid:   { label: 'FluidR3_GM',    name: '_tone_0330_FluidR3_GM_sf2_file' },
+  gug:     { label: 'GeneralUserGS', name: '_tone_0330_GeneralUserGS_sf2_file' },
+  jclive:  { label: 'JCLive',        name: '_tone_0330_JCLive_sf2_file' },
+  aspirin: { label: 'Aspirin',       name: '_tone_0330_Aspirin_sf2_file' },
+  chaos:   { label: 'Chaos',         name: '_tone_0330_Chaos_sf2_file' },
+  sblive:  { label: 'SBLive',        name: '_tone_0330_SBLive_sf2' }
+};
+const GUITAR_BANKS = {
+  fluid:    { label: 'FluidR3_GM',      name: '_tone_0250_FluidR3_GM_sf2_file' },
+  gug:      { label: 'GeneralUserGS',   name: '_tone_0250_GeneralUserGS_sf2_file' },
+  jclive:   { label: 'JCLive',          name: '_tone_0250_JCLive_sf2_file' },
+  aspirin:  { label: 'Aspirin',         name: '_tone_0250_Aspirin_sf2_file' },
+  chaos:    { label: 'Chaos',           name: '_tone_0250_Chaos_sf2_file' },
+  acoustic: { label: 'Acoustic_Guitar', name: '_tone_0250_Acoustic_Guitar_sf2_file' }
+};
+Object.values(BASS_BANKS).forEach(b => wafPlayer.loader.decodeAfterLoading(ac, b.name));
+Object.values(GUITAR_BANKS).forEach(b => wafPlayer.loader.decodeAfterLoading(ac, b.name));
+
+// small reverb send just for the snare -- a bit of "ring" tail, kept short,
+// layered on top of the shared room bus above
 const snareVerb = ac.createConvolver();
 snareVerb.buffer = makeReverbImpulse(0.6, 3.2);
 const snareVerbGain = ac.createGain(); snareVerbGain.gain.value = 0.22;
 snareVerb.connect(snareVerbGain).connect(ac.destination);
 
-async function playDrums(btn) {
-  btn.disabled = true;
-  if (ac.state === 'suspended') await ac.resume();
-  const now = ac.currentTime + 0.05;
+function scheduleDrumPattern(now, bars) {
   const eighth = 0.25;
-  for (let bar = 0; bar < 2; bar++) {
+  for (let bar = 0; bar < bars; bar++) {
     for (let i = 0; i < 8; i++) {
       const t = now + bar * 8 * eighth + i * eighth;
-      wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.hihat], t, 42, 0.12, 0.18);
-      if (i % 4 === 0) wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.kick], t, 35, 0.3, 0.5);
+      wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.hihat], t, 42, 0.12, 0.18);
+      if (i % 4 === 0) wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.kick], t, 35, 0.3, 0.5);
       if (i % 4 === 2) {
-        wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.snare], t, 38, 0.2, 0.35); // dry
-        wafPlayer.queueWaveTable(ac, snareVerb, window[DRUM.snare], t, 38, 0.2, 0.35);      // wet send (ring)
+        wafPlayer.queueWaveTable(ac, instrumentBus, window[DRUM.snare], t, 38, 0.2, 0.35); // dry (through shared room)
+        wafPlayer.queueWaveTable(ac, snareVerb, window[DRUM.snare], t, 38, 0.2, 0.35);     // extra ring send
       }
     }
   }
+}
+async function playDrums(btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  scheduleDrumPattern(ac.currentTime + 0.05, 2);
   setTimeout(() => { btn.disabled = false; }, 4500);
 }
 document.getElementById('drumBtn').addEventListener('click', (e) => playDrums(e.target));
@@ -206,7 +326,7 @@ function makePolishChain() {
   chorusDelay.connect(chorusWet).connect(output);
   lowpass.connect(convolver);
   convolver.connect(reverbWet).connect(output);
-  output.connect(ac.destination);
+  output.connect(instrumentBus);
   return input;
 }
 const guitarPolish = makePolishChain();
@@ -215,7 +335,9 @@ async function getInstrument(name, soundfont) {
   const key = soundfont ? name + '|' + soundfont : name;
   if (!cache[key]) {
     statusEl.textContent = key + ' 음원 로딩 중...';
-    cache[key] = await Soundfont.instrument(ac, name, soundfont ? { soundfont } : undefined);
+    const opts = { destination: instrumentBus };
+    if (soundfont) opts.soundfont = soundfont;
+    cache[key] = await Soundfont.instrument(ac, name, opts);
     if (name === 'overdriven_guitar') cache[key].connect(guitarPolish);
     statusEl.textContent = '';
   }
@@ -251,12 +373,6 @@ async function playDemo(instName, kind, btn, soundfont) {
   } else if (kind === 'bassline') {
     const notes = [36, 36, 43, 41, 36, 36, 38, 41];
     notes.forEach((n, i) => inst.play(midiToNoteName(n), now + i * 0.4, { duration: 0.38 }));
-  } else if (kind === 'strum') {
-    // low-to-high voicing with a slight per-string offset, like a real strum
-    const prog = [[52,57,60,64,67],[53,57,60,65,69],[55,59,62,67,71],[52,57,60,64,67]];
-    prog.forEach((chord, ci) => {
-      chord.forEach((n, ni) => inst.play(midiToNoteName(n), now + ci * 0.8 + ni * 0.02, { duration: 0.7 }));
-    });
   } else if (kind === 'powerchord') {
     // root + fifth + octave, held -- classic power-chord voicing
     const prog = [[40, 47, 52], [45, 52, 57]]; // E5, then A5
@@ -273,6 +389,178 @@ document.querySelectorAll('button[data-inst]').forEach(btn => {
     playDemo(btn.dataset.inst, btn.dataset.kind, btn, btn.dataset.sf);
   });
 });
+
+// ---------- Piano: Salamander Grand Piano ----------
+// Same sample set (Yamaha C5, sampled by Alexander Holm) and the same
+// baseUrl Tone.js's own official examples use, mapped across the keyboard
+// with Tone.Sampler.
+const SALAMANDER_URLS = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
+  C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3', A2: 'A2.mp3',
+  C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+  C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3',
+  C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+  C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
+  C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3', A7: 'A7.mp3',
+  C8: 'C8.mp3'
+};
+// resolves to a soundfont-player-like { play(name, time, opts) } wrapper,
+// so it can be dropped into the same call sites as the other instruments
+const salamanderReady = new Promise((resolve) => {
+  const sampler = new Tone.Sampler({
+    urls: SALAMANDER_URLS,
+    baseUrl: 'https://tonejs.github.io/audio/salamander/',
+    release: 1,
+    onload: () => resolve(sampler)
+  });
+  sampler.connect(instrumentBus);
+}).then(sampler => ({
+  play: (name, time, opts) => sampler.triggerAttackRelease(name, (opts && opts.duration) || 1, time)
+}));
+
+async function playPianoSalamander(kind, btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  statusEl.textContent = 'Salamander Grand Piano 로딩 중...';
+  const inst = await salamanderReady;
+  statusEl.textContent = '';
+  const now = ac.currentTime + 0.05;
+  if (kind === 'chord') {
+    const prog = [[60,64,67],[65,69,72],[67,71,74],[60,64,67]];
+    prog.forEach((chord, i) => chord.forEach(n => inst.play(midiToNoteName(n), now + i * 0.8, { duration: 0.75 })));
+  } else {
+    const notes = [60, 62, 64, 65, 67, 65, 64, 62, 60];
+    const durs  = [0.4, 0.4, 0.4, 0.4, 0.6, 0.4, 0.4, 0.4, 0.8];
+    let t = 0;
+    notes.forEach((n, i) => { inst.play(midiToNoteName(n), now + t, { duration: durs[i] * 0.9 }); t += durs[i]; });
+  }
+  setTimeout(() => { btn.disabled = false; }, 4200);
+}
+document.querySelectorAll('button[data-piano]').forEach(btn => {
+  btn.addEventListener('click', () => playPianoSalamander(btn.dataset.kind, btn));
+});
+
+// ---------- Pad: synth (fatsine) vs GM string sample ----------
+// Same fatsine config index.html uses for its pad wash.
+const padSynth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: 'fatsine', count: 3, spread: 25 },
+  envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
+  volume: -10
+}).connect(instrumentBus);
+
+const PAD_PROG = [[60,64,67],[65,69,72],[67,71,74],[60,64,67]]; // same I-IV-V-I as the piano chord demo
+
+async function playPadFatsine(btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  const t0 = Tone.now() + 0.1;
+  PAD_PROG.forEach((chord, i) => {
+    padSynth.triggerAttackRelease(chord.map(midiToNoteName), 1.3, t0 + i * 1.5);
+  });
+  setTimeout(() => { btn.disabled = false; }, 6800);
+}
+async function playPadString(btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  const inst = await getInstrument('string_ensemble_1');
+  const now = ac.currentTime + 0.1;
+  PAD_PROG.forEach((chord, i) => {
+    chord.forEach(n => inst.play(midiToNoteName(n), now + i * 1.5, { duration: 1.4 }));
+  });
+  setTimeout(() => { btn.disabled = false; }, 6800);
+}
+document.querySelectorAll('button[data-pad]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.pad === 'fatsine') playPadFatsine(btn); else playPadString(btn);
+  });
+});
+
+// ---------- Bass / guitar sound-bank comparisons (WebAudioFont) ----------
+async function playBassBank(bankKey, btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  const bank = BASS_BANKS[bankKey];
+  const now = ac.currentTime + 0.05;
+  const notes = [36, 36, 43, 41, 36, 36, 38, 41];
+  notes.forEach((n, i) => {
+    wafPlayer.queueWaveTable(ac, instrumentBus, window[bank.name], now + i * 0.4, n, 0.38, 0.55);
+  });
+  setTimeout(() => { btn.disabled = false; }, 3500);
+}
+document.querySelectorAll('button[data-bass-bank]').forEach(btn => {
+  btn.addEventListener('click', () => playBassBank(btn.dataset.bassBank, btn));
+});
+
+async function playGuitarBank(bankKey, btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  const bank = GUITAR_BANKS[bankKey];
+  const now = ac.currentTime + 0.05;
+  const eighth = 0.25;
+  const chords = [[48, 55, 60, 64], [43, 50, 55, 59]];
+  chords.forEach((chord, bar) => {
+    STRUM_PATTERNS.steady.forEach(([step]) => {
+      const t = now + bar * 8 * eighth + step * eighth;
+      chord.forEach((n, i) => {
+        wafPlayer.queueWaveTable(ac, instrumentBus, window[bank.name], t + i * 0.015, n, eighth * 1.6, 0.45);
+      });
+    });
+  });
+  setTimeout(() => { btn.disabled = false; }, 4500);
+}
+document.querySelectorAll('button[data-guitar-bank]').forEach(btn => {
+  btn.addEventListener('click', () => playGuitarBank(btn.dataset.guitarBank, btn));
+});
+
+// ---------- Ensemble: everything together, one button ----------
+async function playEnsemble(btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  statusEl.textContent = '악기 로딩 중...';
+  const [salamander, guitar] = await Promise.all([
+    Promise.race([salamanderReady, new Promise(r => setTimeout(() => r(null), 10000))]),
+    getInstrument('acoustic_guitar_steel', 'MusyngKite')
+  ]);
+  const piano = salamander || await getInstrument('acoustic_grand_piano');
+  statusEl.textContent = '';
+
+  const now = ac.currentTime + 0.15;
+  const eighth = 0.25;
+
+  // melody (piano)
+  const notes = [60, 62, 64, 65, 67, 65, 64, 62, 60];
+  const durs  = [0.4, 0.4, 0.4, 0.4, 0.6, 0.4, 0.4, 0.4, 0.8];
+  let t = 0;
+  notes.forEach((n, i) => { piano.play(midiToNoteName(n), now + t, { duration: durs[i] * 0.9 }); t += durs[i]; });
+
+  // bass (WebAudioFont FluidR3_GM bank)
+  const bassNotes = [36, 36, 43, 41, 36, 36, 38, 41];
+  bassNotes.forEach((n, i) => {
+    wafPlayer.queueWaveTable(ac, instrumentBus, window[BASS_BANKS.fluid.name], now + i * 0.4, n, 0.38, 0.5);
+  });
+
+  // guitar strum (syncopated pattern, 2 bars, MusyngKite steel)
+  const chords = [[52,57,60,64,67],[53,57,60,65,69]];
+  chords.forEach((chord, bar) => {
+    STRUM_PATTERNS.syncopated.forEach(([step, up]) => {
+      const st = now + bar * 8 * eighth + step * eighth;
+      const order = up ? [...chord].reverse() : chord;
+      order.forEach((n, i) => guitar.play(midiToNoteName(n), st + i * 0.015, { duration: eighth * 1.6 }));
+    });
+  });
+
+  // pad (fatsine chord wash, same progression as the piano melody's harmony)
+  const padT0 = Tone.now() + 0.15;
+  PAD_PROG.forEach((chord, i) => {
+    padSynth.triggerAttackRelease(chord.map(midiToNoteName), 1.3, padT0 + i * 1.0);
+  });
+
+  // drums (2 bars)
+  scheduleDrumPattern(now, 2);
+
+  setTimeout(() => { btn.disabled = false; }, 5000);
+}
+document.getElementById('ensembleBtn').addEventListener('click', (e) => playEnsemble(e.target));
 })();
 </script>
 </body>

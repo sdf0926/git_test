@@ -400,12 +400,72 @@ let lookaheadId = null;
 // own AudioContext so their playback times line up with Tone.Transport.
 const ac = Tone.getContext().rawContext;
 
+// Shared "room" bus -- every instrument's dry signal passes through here on
+// its way to the speakers, and a copy is also sent into one room convolver.
+// Because it's the SAME convolver/impulse for every instrument, they all read
+// as sitting in one space together instead of each being dry-mixed in its own
+// bubble and stitched together afterward.
+function makeReverbImpulse(seconds, decay) {
+  const rate = ac.sampleRate;
+  const length = Math.floor(rate * seconds);
+  const impulse = ac.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return impulse;
+}
+const roomBus = ac.createGain();
+roomBus.connect(ac.destination);
+const roomConvolver = ac.createConvolver();
+roomConvolver.buffer = makeReverbImpulse(1.8, 2.2);
+const roomWet = ac.createGain(); roomWet.gain.value = 0.16;
+roomBus.connect(roomConvolver);
+roomConvolver.connect(roomWet).connect(ac.destination);
+
+// Piano: Salamander Grand Piano (Yamaha C5, sampled by Alexander Holm), the
+// same sample set Tone.js's own official examples use, pitch-mapped across
+// the keyboard with Tone.Sampler. Falls back to the old GM soundfont piano
+// if the samples don't finish loading in time (offline, slow network, etc.)
+// so playback never goes silent.
+const SALAMANDER_URLS = {
+  A0: 'A0.mp3', C1: 'C1.mp3', 'D#1': 'Ds1.mp3', 'F#1': 'Fs1.mp3', A1: 'A1.mp3',
+  C2: 'C2.mp3', 'D#2': 'Ds2.mp3', 'F#2': 'Fs2.mp3', A2: 'A2.mp3',
+  C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3', A3: 'A3.mp3',
+  C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3', A4: 'A4.mp3',
+  C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+  C6: 'C6.mp3', 'D#6': 'Ds6.mp3', 'F#6': 'Fs6.mp3', A6: 'A6.mp3',
+  C7: 'C7.mp3', 'D#7': 'Ds7.mp3', 'F#7': 'Fs7.mp3', A7: 'A7.mp3',
+  C8: 'C8.mp3'
+};
+function loadSalamanderPiano() {
+  return new Promise((resolve) => {
+    const sampler = new Tone.Sampler({
+      urls: SALAMANDER_URLS,
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+      release: 1,
+      onload: () => resolve(sampler)
+    });
+    sampler.connect(roomBus);
+  });
+}
+
 // Equal per-note gain doesn't mean equal loudness: the guitar strums 4 notes
 // at once every stroke while the piano plays mostly one note at a time, so
 // matching their raw gain left the guitar dominating the mix.
-const pianoPromise = Soundfont.instrument(ac, 'acoustic_grand_piano', { gain: 3.5 });
-const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 2.3 });
-const guitarPromise = Soundfont.instrument(ac, 'acoustic_guitar_steel', { gain: 1 });
+const pianoPromise = Promise.race([
+  loadSalamanderPiano(),
+  new Promise(resolve => setTimeout(() => resolve(null), 10000))
+]).then((sampler) => {
+  if (sampler) {
+    return { play: (name, time, opts) => sampler.triggerAttackRelease(name, (opts && opts.duration) || 1, time) };
+  }
+  return Soundfont.instrument(ac, 'acoustic_grand_piano', { gain: 3.5, destination: roomBus });
+});
+const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 2.3, destination: roomBus });
+const guitarPromise = Soundfont.instrument(ac, 'acoustic_guitar_steel', { gain: 1, destination: roomBus });
 let pianoInst = null, bassInst = null, guitarInst = null;
 pianoPromise.then(i => { pianoInst = i; });
 bassPromise.then(i => { bassInst = i; });
@@ -425,7 +485,7 @@ const padSynth = new Tone.PolySynth(Tone.Synth, {
   oscillator: { type: 'fatsine', count: 3, spread: 25 },
   envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
   volume: -10
-}).toDestination();
+}).connect(roomBus);
 
 // Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont -- soundfont-
 // player only covers the 128 melodic GM instruments, not the channel-10
@@ -582,17 +642,17 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
       const beatIdx = Math.floor(t / quarterSec);
       const isDownbeat = Math.abs(t - beatIdx * quarterSec) < 1e-6;
       if (isDownbeat) {
-        if (beatIdx % 2 === 0) wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.kick], startTime + t, 35, 0.3, 0.55);
-        else wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.snare], startTime + t, 34, 0.2, 0.4);
+        if (beatIdx % 2 === 0) wafPlayer.queueWaveTable(ac, roomBus, window[DRUM.kick], startTime + t, 35, 0.3, 0.55);
+        else wafPlayer.queueWaveTable(ac, roomBus, window[DRUM.snare], startTime + t, 34, 0.2, 0.4);
       }
-      wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.hihat], startTime + t, 42, 0.12, isDownbeat ? 0.22 : 0.14);
+      wafPlayer.queueWaveTable(ac, roomBus, window[DRUM.hihat], startTime + t, 42, 0.12, isDownbeat ? 0.22 : 0.14);
     }
     if (isTransition) {
       // 16th-note fill in the last beat, crescendo
       const sixteenth = quarterSec / 4;
       for (let i = 0; i < 4; i++) {
         const t = fillZoneStart + i * sixteenth;
-        wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.snare], startTime + t, 34, 0.15, 0.2 + i * 0.12);
+        wafPlayer.queueWaveTable(ac, roomBus, window[DRUM.snare], startTime + t, 34, 0.15, 0.2 + i * 0.12);
       }
     }
   }
