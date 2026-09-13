@@ -11,6 +11,7 @@
 <script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12838_1_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_LK_AcousticSteel_SF2_file.js"></script>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -428,6 +429,12 @@ const roomWet = ac.createGain(); roomWet.gain.value = 0.16;
 roomBus.connect(roomConvolver);
 roomConvolver.connect(roomWet).connect(ac.destination);
 
+// WebAudioFont player -- created up front since both the guitar (below) and
+// the drum kit (further down) need it; soundfont-player only covers the 128
+// melodic GM instruments, not raw sf2 sample banks or the channel-10
+// percussion map.
+const wafPlayer = new WebAudioFontPlayer();
+
 // Piano: Salamander Grand Piano (Yamaha C5, sampled by Alexander Holm), the
 // same sample set Tone.js's own official examples use, pitch-mapped across
 // the keyboard with Tone.Sampler. Falls back to the old GM soundfont piano
@@ -468,32 +475,45 @@ const pianoPromise = Promise.race([
   return Soundfont.instrument(ac, 'acoustic_grand_piano', { gain: 3.5, destination: roomBus });
 });
 const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 2.3, destination: roomBus });
-const guitarPromise = Soundfont.instrument(ac, 'acoustic_guitar_steel', { gain: 1, destination: roomBus });
-let pianoInst = null, bassInst = null, guitarInst = null;
-pianoPromise.then(i => { pianoInst = i; });
-bassPromise.then(i => { bassInst = i; });
-guitarPromise.then(i => { guitarInst = i; });
 
 function midiToNoteName(m) {
   const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   return names[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 }
+function noteNameToMidi(name) {
+  const mm = /^([A-G])(#|b)?(-?\d+)$/.exec(name);
+  const pcMap = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const pc = pcMap[mm[1]] + (mm[2] === '#' ? 1 : mm[2] === 'b' ? -1 : 0);
+  return pc + (parseInt(mm[3], 10) + 1) * 12;
+}
 
-// A soft sustained pad under the chords -- common in Korean CCM live-band
-// arrangements (strings/pad wash under piano+rhythm section). Very quiet;
-// it's atmosphere, not a lead voice. Release must stay shorter than the
-// fastest chord-change rate in the song, or the outgoing chord's tail rings
-// into the next chord and the two clash (this is what sounded "off-key").
-const padSynth = new Tone.PolySynth(Tone.Synth, {
-  oscillator: { type: 'fatsine', count: 3, spread: 25 },
-  envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
-  volume: -10
-}).connect(roomBus);
+// Guitar: LK_AcousticSteel, a WebAudioFont-only sample bank (not part of
+// soundfont-player's two prebuilt fonts) picked after A/B-ing several banks
+// in midi_demo.html. queueWaveTable() takes a numeric MIDI pitch rather than
+// a note name, so this wraps it in the same play(name, time, opts) shape the
+// soundfont-player instruments use, converting the name back to a pitch.
+const GUITAR_WAVETABLE = '_tone_0250_LK_AcousticSteel_SF2_file';
+wafPlayer.loader.decodeAfterLoading(ac, GUITAR_WAVETABLE);
+const guitarPromise = Promise.resolve({
+  play: (name, time, opts) => {
+    const dur = (opts && opts.duration) || 1;
+    const gain = (opts && opts.gain !== undefined) ? opts.gain : 1;
+    wafPlayer.queueWaveTable(ac, roomBus, window[GUITAR_WAVETABLE], time, noteNameToMidi(name), dur, gain);
+  }
+});
 
-// Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont -- soundfont-
-// player only covers the 128 melodic GM instruments, not the channel-10
-// percussion map, so the drum kit needs this separate loader/player.
-const wafPlayer = new WebAudioFontPlayer();
+// Pad: GM String Ensemble 1 (soundfont sample) instead of a synth wash --
+// same soft-sustain-under-the-chords role, chosen after comparing it
+// against the synth pad in midi_demo.html.
+const stringPromise = Soundfont.instrument(ac, 'string_ensemble_1', { destination: roomBus });
+
+let pianoInst = null, bassInst = null, guitarInst = null, stringInst = null;
+pianoPromise.then(i => { pianoInst = i; });
+bassPromise.then(i => { bassInst = i; });
+guitarPromise.then(i => { guitarInst = i; });
+stringPromise.then(i => { stringInst = i; });
+
+// Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont.
 const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', snare: '_drum_38_1_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file' };
 Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
 
@@ -555,15 +575,17 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
     });
   }
 
-  // --- pad (sustained chord wash) ---
-  if (wantPad) {
+  // --- pad (sustained chord wash, GM string ensemble) ---
+  if (wantPad && stringInst) {
     harmonySegments(m).forEach(seg => {
       const thirdOffset = /^m/.test(seg.h.quality) ? 3 : 4;
       const pcs = [seg.h.rootPc, (seg.h.rootPc + thirdOffset) % 12, (seg.h.rootPc + 7) % 12];
-      const notes = pcs.map(pc => Tone.Frequency(midi(pc, 3) + transpose, 'midi').toFrequency());
       const segStart = startTime + tickToSec(seg.start, m.division);
       const segDur = tickToSec(seg.end - seg.start, m.division);
-      padSynth.triggerAttackRelease(notes, segDur * 0.95, segStart);
+      pcs.forEach(pc => {
+        const note = midi(pc, 3) + transpose;
+        stringInst.play(midiToNoteName(note), segStart, { duration: segDur * 0.95 });
+      });
     });
   }
 
@@ -899,10 +921,10 @@ function autoSuggestSections() {
 async function startPlayback() {
   if (!score) return;
   await Tone.start();
-  if (!pianoInst || !bassInst || !guitarInst) {
+  if (!pianoInst || !bassInst || !guitarInst || !stringInst) {
     document.getElementById('status').textContent = '악기 음원 로딩 중...';
     await Promise.race([
-      Promise.all([pianoPromise, bassPromise, guitarPromise]),
+      Promise.all([pianoPromise, bassPromise, guitarPromise, stringPromise]),
       new Promise(r => setTimeout(r, 8000))
     ]);
     document.getElementById('status').textContent = '';
