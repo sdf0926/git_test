@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>즉흥 찬양 반주 프로토타입</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
@@ -20,7 +21,8 @@
   body {
     margin: 0; padding: 0; background: var(--bg); color: var(--text);
     font-family: -apple-system, "Malgun Gothic", "맑은 고딕", sans-serif;
-    height: 100vh; display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .mono { font-family: "Courier New", ui-monospace, monospace; letter-spacing: 0.02em; }
   #loadBar {
@@ -32,14 +34,14 @@
   #status { font-size: 13px; color: var(--amber); }
 
   #lyricArea {
-    flex: 0 0 auto; padding: 24px 24px 14px; text-align: center;
+    flex: 0 0 auto; padding: 24px 16px 14px; text-align: center;
   }
   .langBlock { margin-bottom: 10px; }
   .langBlock[hidden] { display: none; }
-  .curLine { font-size: 56px; font-weight: 700; line-height: 1.35; min-height: 1.35em; }
-  .nextLine { font-size: 26px; font-weight: 500; line-height: 1.3; min-height: 1.3em; color: #5c5b57; }
-  .langBlock.secondary .curLine { font-size: 34px; color: #b3b1ab; }
-  .langBlock.secondary .nextLine { font-size: 19px; }
+  .curLine { font-size: clamp(30px, 9vw, 56px); font-weight: 700; line-height: 1.35; min-height: 1.35em; }
+  .nextLine { font-size: clamp(16px, 5vw, 26px); font-weight: 500; line-height: 1.3; min-height: 1.3em; color: #5c5b57; }
+  .langBlock.secondary .curLine { font-size: clamp(20px, 6vw, 34px); color: #b3b1ab; }
+  .langBlock.secondary .nextLine { font-size: clamp(13px, 3.5vw, 19px); }
   .curLine .word { opacity: 0.3; transition: opacity .15s, color .15s; }
   .curLine .word.active { opacity: 1; color: #fff3de; }
   .langBlock.secondary .curLine .word.active { color: #f0e3c8; }
@@ -72,6 +74,7 @@
   button.big {
     padding: 12px 18px; border-radius: 4px; border: 1px solid var(--border); font-size: 15px; font-weight: 600;
     cursor: pointer; background: var(--panel2); color: var(--text);
+    min-height: 44px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   button.big:hover { background: #303236; }
   #playBtn.playing { background: var(--amber); border-color: var(--amber); color: var(--amber-text); }

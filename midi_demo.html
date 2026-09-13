@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GM(미디) 음원 비교 데모</title>
 <script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
@@ -24,9 +25,12 @@
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_Chaos_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_Acoustic_Guitar_sf2_file.js"></script>
 <style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
-    margin: 0; padding: 24px; background: #17181a; color: #ececea;
+    margin: 0; background: #17181a; color: #ececea;
     font-family: -apple-system, "Malgun Gothic", "맑은 고딕", sans-serif;
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+    max-width: 720px;
   }
   h1 { font-size: 20px; margin-bottom: 4px; }
   h2.section { font-size: 14px; color: #6f6d68; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -45,16 +49,26 @@
   }
   .card.hero h2 { font-size: 18px; color: #f0d9ad; }
   button {
-    padding: 10px 20px; border-radius: 4px; border: 1px solid #3a3a3c; font-size: 14px; font-weight: 600;
+    padding: 12px 20px; border-radius: 4px; border: 1px solid #3a3a3c; font-size: 14px; font-weight: 600;
     cursor: pointer; background: #26272b; color: #ececea; white-space: nowrap;
+    min-height: 44px; touch-action: manipulation;
   }
   button:hover { background: #303236; }
+  button:active { background: #35373b; }
   button:disabled { opacity: 0.5; cursor: default; }
   button.playAll {
     padding: 14px 26px; font-size: 15px; background: #d99a44; color: #1a1509; border-color: #d99a44;
+    width: 100%;
   }
-  button.playAll:hover { background: #e3ab5c; }
+  button.playAll:hover, button.playAll:active { background: #e3ab5c; }
   #status { font-size: 13px; color: #d99a44; margin-bottom: 16px; min-height: 1.2em; }
+
+  @media (max-width: 480px) {
+    body { padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+    .card { padding: 14px; gap: 10px; }
+    .card > div[style] { width: 100%; }
+    .card > div[style] button { flex: 1 1 auto; }
+  }
 </style>
 </head>
 <body>
