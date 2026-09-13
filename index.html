@@ -618,12 +618,17 @@ function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx
   if (wantPad && stringInst) {
     harmonySegments(m).forEach(seg => {
       const { third, fifth, seventh } = chordIntervals(seg.h.quality);
-      const pcs = [seg.h.rootPc, (seg.h.rootPc + third) % 12, (seg.h.rootPc + fifth) % 12];
-      if (seventh !== null) pcs.push((seg.h.rootPc + seventh) % 12);
+      // Semitone offsets straight up from the root MIDI note -- not mod-12
+      // pitch classes independently folded into octave 3, which could put
+      // e.g. the third BELOW the root (whenever rootPc + third wraps past
+      // 12) and voice what's actually a major chord as a jumbled cluster
+      // that reads as murky/minor-ish rather than a clean triad.
+      const rootMidi = midi(seg.h.rootPc, 3) + transpose;
+      const notes = [rootMidi, rootMidi + third, rootMidi + fifth];
+      if (seventh !== null) notes.push(rootMidi + seventh);
       const segStart = startTime + tickToSec(seg.start, m.division);
       const segDur = tickToSec(seg.end - seg.start, m.division);
-      pcs.forEach(pc => {
-        const note = midi(pc, 3) + transpose;
+      notes.forEach(note => {
         stringInst.play(midiToNoteName(note), segStart, { duration: segDur * 0.95 });
       });
     });
