@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>즉흥 찬양 반주 프로토타입</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/soundfont-player@0.12.0/dist/soundfont-player.min.js"></script>
+<script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_1_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #18181a; --panel: #1f2023; --panel2: #26272b; --border: #3a3a3c;
+    --text: #ececea; --muted: #8c8a85; --amber: #d99a44; --amber-dim: #7a5b30;
+    --amber-text: #1a1509;
+  }
+  body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Malgun Gothic", "맑은 고딕", sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  .mono { font-family: "Courier New", ui-monospace, monospace; letter-spacing: 0.02em; }
+  #loadBar {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  #loadBar input[type=file] { color: #bab8b2; max-width: 260px; }
+  #loadBar .info { font-size: 13px; color: var(--muted); }
+  #status { font-size: 13px; color: var(--amber); }
+
+  #lyricArea {
+    flex: 0 0 auto; padding: 24px 24px 14px; text-align: center;
+  }
+  .langBlock { margin-bottom: 10px; }
+  .langBlock[hidden] { display: none; }
+  .curLine { font-size: 56px; font-weight: 700; line-height: 1.35; min-height: 1.35em; }
+  .nextLine { font-size: 26px; font-weight: 500; line-height: 1.3; min-height: 1.3em; color: #5c5b57; }
+  .langBlock.secondary .curLine { font-size: 34px; color: #b3b1ab; }
+  .langBlock.secondary .nextLine { font-size: 19px; }
+  .curLine .word { opacity: 0.3; transition: opacity .15s, color .15s; }
+  .curLine .word.active { opacity: 1; color: #fff3de; }
+  .langBlock.secondary .curLine .word.active { color: #f0e3c8; }
+  #chordNow { font-size: 15px; color: var(--amber); margin-top: 8px; }
+
+  #sectionArea {
+    flex: 1 1 auto; overflow-y: auto; padding: 10px 20px;
+    display: flex; flex-wrap: wrap; align-content: flex-start; gap: 10px;
+  }
+  .secBtn {
+    position: relative; min-width: 130px; padding: 14px 14px 14px 16px; border-radius: 4px;
+    border: 1px solid var(--border); border-left: 4px solid var(--border);
+    background: var(--panel2); color: var(--text); cursor: pointer;
+    font-size: 16px; font-weight: 600; text-align: left;
+  }
+  .secBtn .range { display:block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  .secBtn.playing { border-left-color: var(--amber); background: #2b2c2e; }
+  .secBtn.pending { border-left-color: var(--amber); border-left-style: dashed; color: var(--amber); }
+  .secBtn .del { position:absolute; top:4px; right:6px; font-size:12px; color:#666; cursor:pointer; }
+  #addSecBtn {
+    min-width: 130px; padding: 14px 14px 14px 16px; border-radius: 4px; border: 1px dashed var(--border);
+    background: transparent; color: var(--muted); cursor: pointer; font-size: 15px;
+  }
+
+  #transportBar {
+    flex: 0 0 auto; padding: 12px 20px; background: var(--panel); border-top: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 18px;
+  }
+  #transportBar .grp { display: flex; align-items: center; gap: 8px; }
+  button.big {
+    padding: 12px 18px; border-radius: 4px; border: 1px solid var(--border); font-size: 15px; font-weight: 600;
+    cursor: pointer; background: var(--panel2); color: var(--text);
+  }
+  button.big:hover { background: #303236; }
+  #playBtn.playing { background: var(--amber); border-color: var(--amber); color: var(--amber-text); }
+  #onceMoreBtn.armed, #loopBtn.armed { background: var(--panel2); border-color: var(--amber); color: var(--amber); }
+  input[type=range] { width: 140px; accent-color: var(--amber); }
+  .toggle { display:flex; align-items:center; gap:4px; font-size: 13px; color:#bab8b2; cursor:pointer; }
+  label.small { font-size: 12px; color: var(--muted); }
+  #measureIndicator { font-size: 13px; color: var(--muted); margin-left: auto; }
+
+  dialog#secDialog {
+    border: 1px solid var(--border); border-radius: 6px; padding: 20px; background: var(--panel); color: var(--text);
+    min-width: 260px;
+  }
+  dialog#secDialog input { width: 100%; padding: 6px; margin: 4px 0 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  dialog#secDialog .row { display: flex; gap: 10px; }
+  dialog#secDialog .row > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<div id="loadBar">
+  <input type="file" id="fileInput" accept=".mscz,.mscx">
+  <span class="info" id="scoreInfo">악보를 불러오세요 (.mscz / .mscx)</span>
+  <span id="status"></span>
+</div>
+
+<div id="lyricArea">
+  <div class="langBlock primary" id="langBlock0">
+    <div class="curLine" id="curLine0">&nbsp;</div>
+    <div class="nextLine" id="nextLine0">&nbsp;</div>
+  </div>
+  <div class="langBlock secondary" id="langBlock1" hidden>
+    <div class="curLine" id="curLine1">&nbsp;</div>
+    <div class="nextLine" id="nextLine1">&nbsp;</div>
+  </div>
+  <div id="chordNow" class="mono">&nbsp;</div>
+</div>
+
+<div id="sectionArea"></div>
+
+<div id="transportBar">
+  <div class="grp">
+    <button class="big" id="playBtn">▶ 재생</button>
+    <button class="big" id="onceMoreBtn">한 번 더</button>
+    <button class="big" id="loopBtn">계속 반복</button>
+  </div>
+  <div class="grp">
+    <label class="small">템포</label>
+    <input type="range" id="tempoSlider" min="40" max="200" value="90">
+    <span id="tempoVal" class="small mono">90 BPM</span>
+  </div>
+  <div class="grp">
+    <label class="small">조옮김</label>
+    <button class="big" id="transDown" style="padding:6px 12px;">-</button>
+    <span id="transVal" class="small mono">0</span>
+    <button class="big" id="transUp" style="padding:6px 12px;">+</button>
+  </div>
+  <div class="grp">
+    <label class="toggle"><input type="checkbox" id="togMelody" checked>멜로디</label>
+    <label class="toggle"><input type="checkbox" id="togBass" checked>베이스</label>
+    <label class="toggle"><input type="checkbox" id="togDrum" checked>드럼</label>
+    <label class="toggle"><input type="checkbox" id="togPad" checked>패드</label>
+    <label class="toggle"><input type="checkbox" id="togGuitar" checked>기타</label>
+  </div>
+  <div id="measureIndicator" class="mono">-</div>
+</div>
+
+<dialog id="secDialog">
+  <div><label class="small">구간 이름</label><input id="secName" placeholder="예: 후렴"></div>
+  <div class="row">
+    <div><label class="small">시작 마디</label><input id="secStart" type="number" min="1"></div>
+    <div><label class="small">끝 마디</label><input id="secEnd" type="number" min="1"></div>
+  </div>
+  <div style="display:flex; justify-content:flex-end; gap:8px;">
+    <button class="big" id="secCancel" type="button">취소</button>
+    <button class="big" id="secSave" type="button" style="background:#2f7d46;">저장</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+"use strict";
+
+// ---------- TPC utilities ----------
+const TPC_NAMES = {
+  0:'Fbb',1:'Cbb',2:'Gbb',3:'Dbb',4:'Abb',5:'Ebb',6:'Bbb',
+  7:'Fb',8:'Cb',9:'Gb',10:'Db',11:'Ab',12:'Eb',13:'Bb',
+  14:'F',15:'C',16:'G',17:'D',18:'A',19:'E',20:'B',
+  21:'F#',22:'C#',23:'G#',24:'D#',25:'A#',26:'E#',27:'B#',
+  28:'F##',29:'C##',30:'G##',31:'D##',32:'A##'
+};
+function noteNameToPc(name) {
+  const base = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 }[name[0]];
+  let pc = base;
+  for (let i = 1; i < name.length; i++) {
+    if (name[i] === '#') pc += 1;
+    else if (name[i] === 'b') pc -= 1;
+  }
+  return ((pc % 12) + 12) % 12;
+}
+function tpcToName(tpc) { return TPC_NAMES[tpc] || '?'; }
+function tpcToPc(tpc) { return noteNameToPc(tpcToName(tpc)); }
+
+// ---------- MSCX parsing ----------
+function textOf(el, tag) {
+  const c = el.querySelector(':scope > ' + tag);
+  return c ? c.textContent : null;
+}
+function childrenTag(el, tag) {
+  return Array.from(el.children).filter(c => c.tagName === tag);
+}
+
+function parseHarmony(hEl) {
+  const info = hEl.querySelector(':scope > harmonyInfo');
+  if (!info) return null;
+  const rootTpc = parseInt(textOf(info, 'root'), 10);
+  if (Number.isNaN(rootTpc)) return null;
+  const bassTxt = textOf(info, 'bass');
+  const bassTpc = bassTxt !== null ? parseInt(bassTxt, 10) : null;
+  const quality = textOf(info, 'name') || '';
+  const rootName = tpcToName(rootTpc);
+  const bassName = bassTpc !== null ? tpcToName(bassTpc) : null;
+  let label = rootName + quality;
+  if (bassName) label += '/' + bassName;
+  return {
+    rootPc: tpcToPc(rootTpc),
+    bassPc: bassTpc !== null ? tpcToPc(bassTpc) : null,
+    quality, label
+  };
+}
+
+const DUR_TICKS = { // in 480-division ticks (quarter = 480)
+  'whole': 1920, 'half': 960, 'quarter': 480, 'eighth': 240,
+  '16th': 120, '32nd': 60, '64th': 30, 'measure': null
+};
+
+function durationTicks(chordOrRestEl, division, measureTicks) {
+  const dt = textOf(chordOrRestEl, 'durationType');
+  let base = DUR_TICKS[dt];
+  if (base === null || base === undefined) {
+    // 'measure'-length rest, or unknown: use full measure
+    return measureTicks;
+  }
+  base = base * (division / 480);
+  const dots = childrenTag(chordOrRestEl, 'dots').length ||
+               (chordOrRestEl.querySelector(':scope > dots') ? parseInt(textOf(chordOrRestEl,'dots'),10) : 0);
+  let total = base;
+  let add = base;
+  for (let i = 0; i < dots; i++) { add /= 2; total += add; }
+  return Math.round(total);
+}
+
+async function parseScore(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('XML 파싱 오류');
+  const division = parseInt(textOf(doc.querySelector('Score'), 'Division') || '480', 10);
+
+  const staff = doc.querySelector('Score > Staff[id], Staff[id]');
+  if (!staff) throw new Error('Staff를 찾을 수 없습니다');
+
+  const vbox = staff.querySelector(':scope > VBox');
+  let title = '';
+  if (vbox) {
+    const t = vbox.querySelector('Text > style');
+    Array.from(vbox.querySelectorAll(':scope > Text')).forEach(tx => {
+      const style = textOf(tx, 'style');
+      if (style === 'title') {
+        const txtEl = tx.querySelector(':scope > text');
+        title = txtEl ? txtEl.textContent.replace(/<[^>]+>/g, '') : '';
+      }
+    });
+  }
+
+  const measureEls = childrenTag(staff, 'Measure');
+  const measures = [];
+  let curTimeSig = { n: 4, d: 4 };
+  let lastHarmony = null;
+
+  // MuseScore splits one musical bar into several <Measure len="p/q"> fragments
+  // when a system/line break falls mid-bar (purely a layout choice). A `len`
+  // shorter than the time signature's nominal length marks a fragment; we
+  // glue consecutive fragments back into a single logical measure so the
+  // accompaniment doesn't restart its pattern mid-bar.
+  let pending = null; // { ticksSoFar, startRepeat, endRepeat, markers, jumps, harmonies, notes, sectionLabels }
+
+  function finalizePending(measureTicksFull) {
+    measures.push({
+      index: measures.length, timeSig: { ...curTimeSig }, ticks: pending.ticksSoFar, division,
+      startRepeat: pending.startRepeat, endRepeat: pending.endRepeat,
+      markers: pending.markers, jumps: pending.jumps,
+      harmonies: pending.harmonies, notes: pending.notes, sectionLabels: pending.sectionLabels,
+      activeHarmonyAtStart: null
+    });
+    pending = null;
+  }
+
+  measureEls.forEach((mEl) => {
+    const startRepeat = !!mEl.querySelector(':scope > startRepeat');
+    const endRepeatTxt = textOf(mEl, 'endRepeat');
+    const endRepeat = endRepeatTxt ? parseInt(endRepeatTxt, 10) : null;
+    const markers = childrenTag(mEl, 'Marker').map(mk => ({
+      type: textOf(mk, 'markerType') || textOf(mk, 'label') || 'marker'
+    }));
+    const jumps = childrenTag(mEl, 'Jump').map(j => ({
+      jumpTo: textOf(j, 'jumpTo'), playUntil: textOf(j, 'playUntil'), text: textOf(j, 'text')
+    }));
+
+    const voices = childrenTag(mEl, 'voice');
+    const v0 = voices[0] || null;
+
+    // time signature (may change within this measure's voice)
+    if (v0) {
+      const ts = v0.querySelector(':scope > TimeSig');
+      if (ts) {
+        curTimeSig = {
+          n: parseInt(textOf(ts, 'sigN'), 10),
+          d: parseInt(textOf(ts, 'sigD'), 10)
+        };
+      }
+    }
+    const measureTicksFull = Math.round(division * 4 * curTimeSig.n / curTimeSig.d);
+
+    const lenAttr = mEl.getAttribute('len');
+    let fragmentTicks = measureTicksFull;
+    if (lenAttr && /^\d+\/\d+$/.test(lenAttr)) {
+      const [p, q] = lenAttr.split('/').map(Number);
+      fragmentTicks = Math.round(division * 4 * p / q);
+    }
+
+    if (!pending) {
+      pending = { ticksSoFar: 0, startRepeat: false, endRepeat: null, markers: [], jumps: [], harmonies: [], notes: [], sectionLabels: [] };
+    }
+    const tickBase = pending.ticksSoFar;
+    if (startRepeat) pending.startRepeat = true;
+    if (endRepeat !== null) pending.endRepeat = endRepeat;
+    pending.markers.push(...markers);
+    pending.jumps.push(...jumps);
+
+    let tick = 0;
+    if (v0) {
+      Array.from(v0.children).forEach(el => {
+        if (el.tagName === 'Harmony') {
+          const h = parseHarmony(el);
+          if (h) { h.tick = tickBase + tick; pending.harmonies.push(h); lastHarmony = h; }
+        } else if (el.tagName === 'SystemText' || el.tagName === 'RehearsalMark' || el.tagName === 'StaffText') {
+          const txt = textOf(el, 'text');
+          if (txt) pending.sectionLabels.push(txt.trim());
+        } else if (el.tagName === 'Chord') {
+          const dur = durationTicks(el, division, fragmentTicks);
+          const lyricsEls = childrenTag(el, 'Lyrics');
+          const lyricsByVerse = {};
+          lyricsEls.forEach(ly => {
+            const no = textOf(ly, 'no');
+            const verse = no ? parseInt(no, 10) : 0;
+            const txtEl = ly.querySelector(':scope > text');
+            const raw = txtEl ? txtEl.textContent.replace(/<[^>]+>/g, '') : '';
+            const syl = textOf(ly, 'syllabic');
+            lyricsByVerse[verse] = { text: raw, syllabic: syl };
+          });
+          const noteEls = childrenTag(el, 'Note');
+          const pitches = noteEls.map(n => parseInt(textOf(n, 'pitch'), 10)).filter(p => !Number.isNaN(p));
+          const isTieCont = !!el.querySelector('Spanner[type="Tie"] > prev');
+          pending.notes.push({ tick: tickBase + tick, dur, pitches, lyricsByVerse, tieCont: isTieCont });
+          tick += dur;
+        } else if (el.tagName === 'Rest') {
+          const dur = durationTicks(el, division, fragmentTicks);
+          tick += dur;
+        }
+      });
+    }
+
+    pending.ticksSoFar += fragmentTicks;
+    if (pending.ticksSoFar >= measureTicksFull - 1) {
+      finalizePending(measureTicksFull);
+    }
+    // else: this was a split fragment -- keep accumulating into the next <Measure>
+  });
+  if (pending) finalizePending(Math.round(division * 4 * curTimeSig.n / curTimeSig.d));
+
+  // propagate last-known harmony into measures that have none, for playback continuity
+  let carry = null;
+  measures.forEach(m => {
+    m.activeHarmonyAtStart = carry;
+    if (m.harmonies.length > 0) carry = m.harmonies[m.harmonies.length - 1];
+  });
+
+  const verses = new Set();
+  measures.forEach(m => m.notes.forEach(n => Object.keys(n.lyricsByVerse).forEach(v => verses.add(parseInt(v, 10)))));
+
+  return { title, division, measures, verses: Array.from(verses).sort((a, b) => a - b) };
+}
+
+async function loadFile(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf.slice(0, 2));
+  let xmlText;
+  if (bytes[0] === 0x50 && bytes[1] === 0x4B) { // "PK" zip signature -> .mscz
+    const zip = await JSZip.loadAsync(buf);
+    let entry = null;
+    zip.forEach((path, e) => { if (/\.mscx$/i.test(path) && !entry) entry = e; });
+    if (!entry) throw new Error('mscz 안에서 .mscx 파일을 찾을 수 없습니다');
+    xmlText = await entry.async('string');
+  } else {
+    xmlText = new TextDecoder('utf-8').decode(buf);
+  }
+  return parseScore(xmlText);
+}
+
+// ---------- App state ----------
+let score = null;
+let sections = []; // {id, name, start, end} (1-based, inclusive measure numbers)
+let bpm = 90;
+let transpose = 0;
+let playing = false;
+
+let pendingJump = null;   // measure index (0-based) to jump to at next boundary
+let repeatMode = 'none';  // 'none' | 'once' | 'loop'
+let curIdx = 0;           // measure currently sounding (0-based)
+let scheduleIdx = 0;      // next measure index to schedule
+let nextTime = 0;         // transport-time (s) when scheduleIdx should start
+let lookaheadId = null;
+
+// ---------- Audio engines ----------
+// Melody/bass/guitar use real GM soundfont samples (the same engine behind
+// most hardware church accompaniment boxes, incl. 미가엘), sharing Tone.js's
+// own AudioContext so their playback times line up with Tone.Transport.
+const ac = Tone.getContext().rawContext;
+
+// Equal per-note gain doesn't mean equal loudness: the guitar strums 4 notes
+// at once every stroke while the piano plays mostly one note at a time, so
+// matching their raw gain left the guitar dominating the mix.
+const pianoPromise = Soundfont.instrument(ac, 'acoustic_grand_piano', { gain: 3.5 });
+const bassPromise = Soundfont.instrument(ac, 'electric_bass_finger', { gain: 2.3 });
+const guitarPromise = Soundfont.instrument(ac, 'acoustic_guitar_steel', { gain: 1 });
+let pianoInst = null, bassInst = null, guitarInst = null;
+pianoPromise.then(i => { pianoInst = i; });
+bassPromise.then(i => { bassInst = i; });
+guitarPromise.then(i => { guitarInst = i; });
+
+function midiToNoteName(m) {
+  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  return names[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+}
+
+// A soft sustained pad under the chords -- common in Korean CCM live-band
+// arrangements (strings/pad wash under piano+rhythm section). Very quiet;
+// it's atmosphere, not a lead voice. Release must stay shorter than the
+// fastest chord-change rate in the song, or the outgoing chord's tail rings
+// into the next chord and the two clash (this is what sounded "off-key").
+const padSynth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: 'fatsine', count: 3, spread: 25 },
+  envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
+  volume: -10
+}).toDestination();
+
+// Real GM drum-kit samples (kick/snare/hihat) via WebAudioFont -- soundfont-
+// player only covers the 128 melodic GM instruments, not the channel-10
+// percussion map, so the drum kit needs this separate loader/player.
+const wafPlayer = new WebAudioFontPlayer();
+const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', snare: '_drum_38_1_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file' };
+Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
+
+function midi(pc, oct) { return pc + 12 * (oct + 1); } // oct=4 -> C4=60
+
+// ---------- Generators ----------
+function measureDuration(m) {
+  const quarterSec = 60 / bpm;
+  return m.ticks / m.division * quarterSec;
+}
+function tickToSec(ticksVal, division) {
+  return (ticksVal / division) * (60 / bpm);
+}
+
+function harmonyAt(m, tickPos) {
+  // last harmony whose tick <= tickPos, else carried-in harmony from previous measures
+  let h = m.activeHarmonyAtStart;
+  for (const hh of m.harmonies) {
+    if (hh.tick <= tickPos) h = hh; else break;
+  }
+  return h;
+}
+
+// splits a measure into contiguous {h, start, end} tick-ranges, one per
+// harmony change, for instruments (the pad) that sustain through a chord
+// rather than re-triggering every beat.
+function harmonySegments(m) {
+  const segs = [];
+  let cur = m.activeHarmonyAtStart;
+  let start = 0;
+  m.harmonies.forEach(h => {
+    if (h.tick > start) segs.push({ h: cur, start, end: h.tick });
+    cur = h; start = h.tick;
+  });
+  segs.push({ h: cur, start, end: m.ticks });
+  return segs.filter(s => s.h && s.end > s.start);
+}
+
+function scheduleMeasureAudio(m, startTime, isTransition, nextChordHint, nextIdx) {
+  const quarterSec = 60 / bpm;
+  const measureDur = measureDuration(m);
+  const beats = Math.max(1, Math.round(m.timeSig.n * 4 / m.timeSig.d));
+  const fillZoneStart = Math.max(0, measureDur - quarterSec);
+
+  const wantMelody = document.getElementById('togMelody').checked;
+  const wantBass = document.getElementById('togBass').checked;
+  const wantDrum = document.getElementById('togDrum').checked;
+  const wantPad = document.getElementById('togPad').checked;
+  const wantGuitar = document.getElementById('togGuitar').checked;
+
+  // --- melody (as written) ---
+  if (wantMelody && pianoInst) {
+    m.notes.forEach(n => {
+      if (n.tieCont) return; // avoid re-triggering tied continuation notes
+      if (!n.pitches.length) return;
+      const t = startTime + tickToSec(n.tick, m.division);
+      const dur = tickToSec(n.dur, m.division) * 0.92;
+      n.pitches.forEach(p => pianoInst.play(midiToNoteName(p + transpose), t, { duration: dur }));
+    });
+  }
+
+  // --- pad (sustained chord wash) ---
+  if (wantPad) {
+    harmonySegments(m).forEach(seg => {
+      const thirdOffset = /^m/.test(seg.h.quality) ? 3 : 4;
+      const pcs = [seg.h.rootPc, (seg.h.rootPc + thirdOffset) % 12, (seg.h.rootPc + 7) % 12];
+      const notes = pcs.map(pc => Tone.Frequency(midi(pc, 3) + transpose, 'midi').toFrequency());
+      const segStart = startTime + tickToSec(seg.start, m.division);
+      const segDur = tickToSec(seg.end - seg.start, m.division);
+      padSynth.triggerAttackRelease(notes, segDur * 0.95, segStart);
+    });
+  }
+
+  // --- guitar (strummed chord, low-to-high with a slight per-string offset) ---
+  if (wantGuitar && guitarInst) {
+    // A single strum held for a whole chord's duration rings into the next
+    // chord and clashes with it (this was the "wrong notes" feeling) -- real
+    // strumming also isn't just downbeats either. Below picks between two
+    // common Korean worship-guitar strum feels by tempo: "고고" (go-go) is a
+    // busy, continuous 8th-note down-up strum for up-tempo songs; "슬로우
+    // 고고" (slow go-go) is the same feel thinned out to a sparser,
+    // syncopated pattern for ballads, where a full 8th-note strum feels rushed.
+    // Down/up alone still reads as mechanical if every stroke hits with the
+    // same force and lands exactly on the grid -- real strumming accents
+    // downbeats harder than upbeats and is never perfectly quantized. Adding
+    // per-stroke gain/duration variation plus a hair of timing jitter is
+    // what actually sells "premium" rather than the pattern shape itself.
+    const eighth = quarterSec / 2;
+    const steps = Math.round(measureDur / eighth);
+    const isSlow = bpm < 100;
+    const strums = isSlow
+      ? [{ s: 0, up: false, g: 0.95 }, { s: 2, up: false, g: 0.75 }, { s: 3, up: true, g: 0.55 },
+         { s: 4, up: false, g: 0.9 }, { s: 6, up: false, g: 0.75 }, { s: 7, up: true, g: 0.55 }] // 슬로우 고고
+      : [{ s: 0, up: false, g: 0.95 }, { s: 1, up: true, g: 0.55 }, { s: 2, up: false, g: 0.7 }, { s: 3, up: true, g: 0.5 },
+         { s: 4, up: false, g: 0.9 }, { s: 5, up: true, g: 0.55 }, { s: 6, up: false, g: 0.7 }, { s: 7, up: true, g: 0.5 }]; // 고고
+    strums.forEach(({ s, up, g }) => {
+      if (s >= steps) return;
+      const t = s * eighth;
+      if (isTransition && t >= fillZoneStart) return; // leave the fill bar clear
+      const h = harmonyAt(m, Math.round(t / quarterSec * m.division));
+      if (!h) return;
+      const thirdOffset = /^m/.test(h.quality) ? 3 : 4;
+      const pcs = [h.rootPc, (h.rootPc + 7) % 12, (h.rootPc + thirdOffset) % 12, (h.rootPc + 7) % 12];
+      const octs = [3, 3, 4, 4];
+      const order = up ? [3, 2, 1, 0] : [0, 1, 2, 3];
+      const jitter = (Math.random() - 0.5) * 0.012;
+      const dur = up ? eighth * 1.1 : eighth * 1.6;
+      order.forEach((idx, i) => {
+        const note = midi(pcs[idx], octs[idx]) + transpose;
+        guitarInst.play(midiToNoteName(note), startTime + t + jitter + i * 0.015, { duration: dur, gain: g });
+      });
+    });
+  }
+
+  // --- bass ---
+  if (wantBass && bassInst) {
+    for (let b = 0; b < beats; b++) {
+      const beatTime = b * quarterSec;
+      if (isTransition && beatTime >= fillZoneStart && nextChordHint) {
+        // walk-up/down passing tone into next section's chord on final beat
+        const targetPc = nextChordHint.bassPc !== null ? nextChordHint.bassPc : nextChordHint.rootPc;
+        const cur = harmonyAt(m, Math.round(beatTime / quarterSec * m.division));
+        const curPc = cur ? (cur.bassPc !== null ? cur.bassPc : cur.rootPc) : targetPc;
+        let diff = ((targetPc - curPc + 18) % 12) - 6; // shortest direction, roughly
+        const passPc = ((targetPc - Math.sign(diff || 1) + 12) % 12);
+        const note = midi(passPc, 2) + transpose;
+        bassInst.play(midiToNoteName(note), startTime + beatTime, { duration: quarterSec * 0.97 });
+        continue;
+      }
+      const h = harmonyAt(m, Math.round(beatTime / quarterSec * m.division));
+      if (!h) continue;
+      const useFifth = (beats >= 4) && (b % 2 === 1) && (b !== beats - 1);
+      const pc = (b === 0 || h.bassPc === null) ? (b === 0 && h.bassPc !== null ? h.bassPc : h.rootPc) : h.rootPc;
+      const finalPc = useFifth ? (h.rootPc + 7) % 12 : pc;
+      const note = midi(finalPc, 2) + transpose;
+      bassInst.play(midiToNoteName(note), startTime + beatTime, { duration: quarterSec * 0.97 });
+    }
+  }
+
+  // --- drums (real GM kit via WebAudioFont) ---
+  // snare pitched down from its native GM note (38) to 34 for a duller,
+  // more muffled ("먹먹한") body -- lower playback rate darkens the sample.
+  if (wantDrum) {
+    const eighth = quarterSec / 2;
+    const steps = Math.round(measureDur / eighth);
+    for (let s = 0; s < steps; s++) {
+      const t = s * eighth;
+      if (isTransition && t >= fillZoneStart) continue; // reserve last beat for fill
+      const beatIdx = Math.floor(t / quarterSec);
+      const isDownbeat = Math.abs(t - beatIdx * quarterSec) < 1e-6;
+      if (isDownbeat) {
+        if (beatIdx % 2 === 0) wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.kick], startTime + t, 35, 0.3, 0.55);
+        else wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.snare], startTime + t, 34, 0.2, 0.4);
+      }
+      wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.hihat], startTime + t, 42, 0.12, isDownbeat ? 0.22 : 0.14);
+    }
+    if (isTransition) {
+      // 16th-note fill in the last beat, crescendo
+      const sixteenth = quarterSec / 4;
+      for (let i = 0; i < 4; i++) {
+        const t = fillZoneStart + i * sixteenth;
+        wafPlayer.queueWaveTable(ac, ac.destination, window[DRUM.snare], startTime + t, 34, 0.15, 0.2 + i * 0.12);
+      }
+    }
+  }
+
+  // UI sync (Transport-clock based, not rAF: rAF can be throttled/stalled
+  // when the tab isn't focused, but the beat must stay accurate regardless)
+  Tone.getTransport().scheduleOnce(() => { onMeasureStart(m, startTime, nextIdx); }, startTime);
+}
+
+// ---------- Section / flow logic ----------
+function findSection(measureIdx1based) {
+  return sections.find(s => measureIdx1based >= s.start && measureIdx1based <= s.end) || null;
+}
+
+function resolveNext(idx) {
+  // idx: 0-based current measure about to finish. Returns {next, isTransition, hint}
+  const m1 = idx + 1; // 1-based
+  if (pendingJump !== null) {
+    const target = pendingJump;
+    pendingJump = null;
+    repeatMode = 'none';
+    updateRepeatButtons();
+    const nm = score.measures[target];
+    const hint = nm ? nm.activeHarmonyAtStart : null;
+    return { next: target, isTransition: true, hint: nm && nm.harmonies[0] ? nm.harmonies[0] : hint };
+  }
+  const sec = findSection(m1);
+  if (sec) {
+    if (m1 === sec.end) {
+      if (repeatMode === 'loop' || repeatMode === 'once') {
+        if (repeatMode === 'once') { repeatMode = 'none'; updateRepeatButtons(); }
+        const target = sec.start - 1;
+        const nm = score.measures[target];
+        return { next: target, isTransition: true, hint: nm.harmonies[0] || nm.activeHarmonyAtStart };
+      }
+      // fall through to natural continuation, but still a section boundary -> fill
+      const nextIdx = idx + 1;
+      if (nextIdx >= score.measures.length) return { next: null, isTransition: true, hint: null };
+      const nm = score.measures[nextIdx];
+      return { next: nextIdx, isTransition: true, hint: nm.harmonies[0] || nm.activeHarmonyAtStart };
+    }
+    return { next: idx + 1, isTransition: false, hint: null };
+  }
+  // free-flow (outside defined sections)
+  const nextIdx = idx + 1;
+  if (nextIdx >= score.measures.length) return { next: null, isTransition: false, hint: null };
+  return { next: nextIdx, isTransition: false, hint: null };
+}
+
+function scheduler() {
+  try {
+    const lookahead = 0.25;
+    while (score && scheduleIdx !== null && nextTime < Tone.getTransport().seconds + lookahead) {
+      const m = score.measures[scheduleIdx];
+      const { next, isTransition, hint } = resolveNext(scheduleIdx);
+      scheduleMeasureAudio(m, nextTime, isTransition, hint, next);
+      const dur = measureDuration(m);
+      nextTime += dur;
+      if (next === null) { scheduleIdx = null; break; }
+      scheduleIdx = next;
+    }
+    if (scheduleIdx === null && playing) {
+      // let last measure finish, then stop
+      Tone.getTransport().scheduleOnce(() => { stopPlayback(); }, nextTime + 0.1);
+    }
+  } catch (err) {
+    console.error('scheduler error', err);
+    stopPlayback();
+  }
+}
+
+// ---------- UI sync ----------
+function onMeasureStart(m, atTime, nextIdx) {
+  curIdx = m.index;
+  document.getElementById('measureIndicator').textContent =
+    `마디 ${m.index + 1} / ${score.measures.length}`;
+  const h = harmonyAt(m, 0);
+  document.getElementById('chordNow').textContent = h ? h.label : '-';
+  const nextMeasure = (nextIdx !== null && nextIdx !== undefined) ? score.measures[nextIdx] : null;
+  renderLyricForMeasure(m, nextMeasure, atTime);
+  highlightSectionButtons();
+}
+
+// Groups a measure's per-note syllables into whole words (using MuseScore's
+// syllabic begin/middle/end markers) so multi-syllable words don't render
+// with a highlight-boundary gap between every syllable.
+function wordsForVerse(measure, verse) {
+  const words = [];
+  let buf = '', bufTick = null;
+  measure.notes.forEach(n => {
+    const ly = n.lyricsByVerse[verse];
+    if (!ly) return;
+    if (bufTick === null) bufTick = n.tick;
+    buf += ly.text;
+    if (ly.syllabic !== 'begin' && ly.syllabic !== 'middle') {
+      words.push({ text: buf, tick: bufTick });
+      buf = ''; bufTick = null;
+    }
+  });
+  if (buf) words.push({ text: buf, tick: bufTick });
+  return words;
+}
+
+const VERSE_SLOTS = [0, 1]; // primary (Korean) / secondary (Japanese)
+let curLyricSlots = {};     // verse -> { words, startTime }
+let curLyricDivision = 480;
+let highlightLoopId = null;
+
+function renderLyricForMeasure(m, nextMeasure, startTime) {
+  curLyricSlots = {};
+  curLyricDivision = m.division;
+  VERSE_SLOTS.forEach(verse => {
+    const block = document.getElementById('langBlock' + verse);
+    const curEl = document.getElementById('curLine' + verse);
+    const nextEl = document.getElementById('nextLine' + verse);
+    const words = wordsForVerse(m, verse);
+    const hasVerse = score.verses.includes(verse);
+    block.hidden = !hasVerse;
+    if (!hasVerse) return;
+    if (!words.length) {
+      curEl.innerHTML = '&nbsp;';
+    } else {
+      curEl.innerHTML = words.map((w, i) => `<span class="word" data-i="${i}">${w.text}</span>`).join('');
+      curLyricSlots[verse] = { words, startTime };
+    }
+    const nextWords = nextMeasure ? wordsForVerse(nextMeasure, verse) : [];
+    nextEl.textContent = nextWords.length ? nextWords.map(w => w.text).join('') : ' ';
+  });
+}
+
+function updateLyricHighlight() {
+  VERSE_SLOTS.forEach(verse => {
+    const slot = curLyricSlots[verse];
+    if (!slot) return;
+    const curEl = document.getElementById('curLine' + verse);
+    const elapsedTicks = (Tone.getTransport().seconds - slot.startTime) / (60 / bpm) * curLyricDivision;
+    let active = 0;
+    for (let i = 0; i < slot.words.length; i++) { if (slot.words[i].tick <= elapsedTicks) active = i; }
+    Array.from(curEl.children).forEach((el, i) => el.classList.toggle('active', i === active));
+  });
+}
+
+function highlightSectionButtons() {
+  const m1 = curIdx + 1;
+  document.querySelectorAll('.secBtn').forEach(btn => {
+    const s = sections.find(x => x.id === btn.dataset.id);
+    btn.classList.toggle('playing', !!s && m1 >= s.start && m1 <= s.end);
+    btn.classList.toggle('pending', pendingJump !== null && s && (pendingJump + 1) >= s.start && (pendingJump + 1) <= s.end);
+  });
+}
+
+function updateRepeatButtons() {
+  document.getElementById('onceMoreBtn').classList.toggle('armed', repeatMode === 'once');
+  document.getElementById('loopBtn').classList.toggle('armed', repeatMode === 'loop');
+}
+
+// ---------- Sections UI ----------
+function renderSections() {
+  const area = document.getElementById('sectionArea');
+  area.innerHTML = '';
+  sections.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'secBtn';
+    btn.dataset.id = s.id;
+    btn.innerHTML = `${s.name}<span class="range">마디 ${s.start}-${s.end}</span><span class="del">✕</span>`;
+    btn.addEventListener('click', (e) => {
+      if (e.target.classList.contains('del')) {
+        sections = sections.filter(x => x.id !== s.id);
+        renderSections();
+        return;
+      }
+      if (!score) return;
+      pendingJump = s.start - 1;
+      highlightSectionButtons();
+    });
+    area.appendChild(btn);
+  });
+  const add = document.createElement('button');
+  add.id = 'addSecBtn';
+  add.textContent = '+ 구간 추가';
+  add.addEventListener('click', openSecDialog);
+  area.appendChild(add);
+}
+
+function openSecDialog() {
+  const dlg = document.getElementById('secDialog');
+  document.getElementById('secName').value = '';
+  document.getElementById('secStart').value = 1;
+  document.getElementById('secEnd').value = score ? score.measures.length : 1;
+  dlg.showModal();
+}
+document.getElementById('secCancel').addEventListener('click', () => document.getElementById('secDialog').close());
+document.getElementById('secSave').addEventListener('click', () => {
+  const name = document.getElementById('secName').value.trim() || '구간';
+  const start = parseInt(document.getElementById('secStart').value, 10);
+  const end = parseInt(document.getElementById('secEnd').value, 10);
+  if (start && end && start <= end) {
+    sections.push({ id: 's' + Date.now(), name, start, end });
+    renderSections();
+  }
+  document.getElementById('secDialog').close();
+});
+
+function autoSuggestSections() {
+  sections = [];
+  const total = score.measures.length;
+
+  // prefer real, user-authored labels (SystemText/RehearsalMark/StaffText in
+  // MuseScore) over any heuristic guess -- these are the ground truth once present
+  const labeled = [];
+  score.measures.forEach((m, i) => {
+    m.sectionLabels.forEach(text => labeled.push({ text, measure: i + 1 }));
+  });
+  if (labeled.length) {
+    labeled.forEach((lab, i) => {
+      const end = (i + 1 < labeled.length) ? labeled[i + 1].measure - 1 : total;
+      sections.push({ id: 's_lab' + i, name: lab.text, start: lab.measure, end });
+    });
+    sections.push({ id: 's_all', name: '전체', start: 1, end: total });
+    renderSections();
+    return;
+  }
+
+  let repeatStart = null;
+  score.measures.forEach((m, i) => {
+    if (m.startRepeat) repeatStart = i;
+    if (m.endRepeat && repeatStart !== null) {
+      sections.push({ id: 's' + i + 'a', name: '반복 구간', start: repeatStart + 1, end: i + 1 });
+      repeatStart = null;
+    }
+  });
+  const segnoIdx = score.measures.findIndex(m => m.markers.some(mk => mk.type === 'segno'));
+  if (segnoIdx >= 0) {
+    sections.push({ id: 's' + segnoIdx + 'b', name: '세뇨 이후', start: segnoIdx + 1, end: total });
+  }
+  sections.push({ id: 's_all', name: '전체', start: 1, end: total });
+  renderSections();
+}
+
+// ---------- Transport ----------
+async function startPlayback() {
+  if (!score) return;
+  await Tone.start();
+  if (!pianoInst || !bassInst || !guitarInst) {
+    document.getElementById('status').textContent = '악기 음원 로딩 중...';
+    await Promise.race([
+      Promise.all([pianoPromise, bassPromise, guitarPromise]),
+      new Promise(r => setTimeout(r, 8000))
+    ]);
+    document.getElementById('status').textContent = '';
+  }
+  playing = true;
+  curIdx = 0; scheduleIdx = 0; pendingJump = null; repeatMode = 'none';
+  updateRepeatButtons();
+  Tone.getTransport().stop();
+  Tone.getTransport().seconds = 0;
+  nextTime = 0.1;
+  Tone.getTransport().start();
+  if (lookaheadId) Tone.getTransport().clear(lookaheadId);
+  lookaheadId = Tone.getTransport().scheduleRepeat(scheduler, 0.05);
+  if (highlightLoopId !== null) Tone.getTransport().clear(highlightLoopId);
+  highlightLoopId = Tone.getTransport().scheduleRepeat(updateLyricHighlight, 0.08);
+  document.getElementById('playBtn').textContent = '■ 정지';
+  document.getElementById('playBtn').classList.add('playing');
+}
+
+function stopPlayback() {
+  playing = false;
+  Tone.getTransport().stop();
+  if (lookaheadId !== null) { Tone.getTransport().clear(lookaheadId); lookaheadId = null; }
+  if (highlightLoopId !== null) { Tone.getTransport().clear(highlightLoopId); highlightLoopId = null; }
+  scheduleIdx = null;
+  document.getElementById('playBtn').textContent = '▶ 재생';
+  document.getElementById('playBtn').classList.remove('playing');
+}
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  if (playing) stopPlayback(); else startPlayback();
+});
+document.getElementById('onceMoreBtn').addEventListener('click', () => {
+  repeatMode = repeatMode === 'once' ? 'none' : 'once';
+  updateRepeatButtons();
+});
+document.getElementById('loopBtn').addEventListener('click', () => {
+  repeatMode = repeatMode === 'loop' ? 'none' : 'loop';
+  updateRepeatButtons();
+});
+document.getElementById('tempoSlider').addEventListener('input', (e) => {
+  bpm = parseInt(e.target.value, 10);
+  document.getElementById('tempoVal').textContent = bpm + ' BPM';
+});
+document.getElementById('transUp').addEventListener('click', () => {
+  transpose = Math.min(12, transpose + 1);
+  document.getElementById('transVal').textContent = transpose;
+});
+document.getElementById('transDown').addEventListener('click', () => {
+  transpose = Math.max(-12, transpose - 1);
+  document.getElementById('transVal').textContent = transpose;
+});
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('status').textContent = '불러오는 중...';
+  try {
+    stopPlayback();
+    score = await loadFile(file);
+    document.getElementById('scoreInfo').textContent =
+      `${score.title || file.name} · ${score.measures.length}마디`;
+    document.getElementById('status').textContent = '';
+    autoSuggestSections();
+    curIdx = 0;
+    document.getElementById('measureIndicator').textContent = `마디 1 / ${score.measures.length}`;
+    const h0 = harmonyAt(score.measures[0], 0);
+    document.getElementById('chordNow').textContent = h0 ? h0.label : '-';
+    renderLyricForMeasure(score.measures[0], score.measures[1] || null, 0);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('status').textContent = '오류: ' + err.message;
+  }
+});
+
+})();
+</script>
+</body>
+</html>
