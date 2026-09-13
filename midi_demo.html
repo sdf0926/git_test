@@ -176,6 +176,21 @@
 
 <div class="card">
   <div class="info">
+    <h2>신스 패드 — 파형(oscillator) 비교</h2>
+    <p>GM 샘플이 아니라 신스 자체의 파형을 바꿔서 6종을 비교합니다. fatsine이 index.html에서 쓰는 현재 기본값입니다.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-synth-pad="fatsine">fatsine (현재)</button>
+    <button data-synth-pad="fatsawtooth">fatsawtooth</button>
+    <button data-synth-pad="fatsquare">fatsquare</button>
+    <button data-synth-pad="fattriangle">fattriangle</button>
+    <button data-synth-pad="amsine">amsine</button>
+    <button data-synth-pad="fmsine">fmsine</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="info">
     <h2>스트링 — 다른 사운드뱅크 비교 (WebAudioFont)</h2>
     <p>같은 GM 49번(String Ensemble 1) 음색을, 서로 다른 sf2 사운드뱅크 6종으로 비교합니다. 같은 코드 진행(C-F-G-C)을 씁니다.</p>
   </div>
@@ -611,6 +626,35 @@ document.querySelectorAll('button[data-pad]').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.pad === 'fatsine') playPadFatsine(btn); else playPadString(btn);
   });
+});
+
+// ---------- Synth pad: same fatsine config, different oscillator waveform ----------
+// 'fat' types add detuned unison voices (via count/spread) for width; plain
+// AM/FM types ignore those two options harmlessly. One synth per waveform,
+// created lazily and cached, same envelope/volume as the current pad.
+const synthPadCache = { fatsine: padSynth };
+function getSynthPad(oscType) {
+  if (!synthPadCache[oscType]) {
+    synthPadCache[oscType] = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: oscType, count: 3, spread: 25 },
+      envelope: { attack: 0.5, decay: 0.3, sustain: 0.75, release: 0.5 },
+      volume: -10
+    }).connect(instrumentBus);
+  }
+  return synthPadCache[oscType];
+}
+async function playSynthPadType(oscType, btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  const synth = getSynthPad(oscType);
+  const t0 = Tone.now() + 0.1;
+  PAD_PROG.forEach((chord, i) => {
+    synth.triggerAttackRelease(chord.map(midiToNoteName), 1.3, t0 + i * 1.5);
+  });
+  setTimeout(() => { btn.disabled = false; }, 6800);
+}
+document.querySelectorAll('button[data-synth-pad]').forEach(btn => {
+  btn.addEventListener('click', () => playSynthPadType(btn.dataset.synthPad, btn));
 });
 
 async function playStringBank(bankKey, btn) {
