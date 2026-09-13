@@ -10,10 +10,19 @@
 <script src="https://surikov.github.io/webaudiofontdata/sound/12835_17_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12842_1_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12838_2_JCLive_sf2_file.js"></script>
-<!-- 전체 합주 미리듣기용 FluidR3_GM 드럼킷 -->
+<!-- 드럼 사운드뱅크 비교 + 전체 합주용 (각 뱅크의 킥/스네어/하이햇을 variant 0으로 통일) -->
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_JCLive_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_JCLive_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_FluidR3_GM_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_FluidR3_GM_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_FluidR3_GM_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_Chaos_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_Chaos_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_Chaos_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12835_0_SBLive_sf2.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12838_0_SBLive_sf2.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/12842_0_SBLive_sf2.js"></script>
 <!-- 베이스(GM 33, Electric Bass finger) 사운드뱅크 비교용 -->
 <script src="https://surikov.github.io/webaudiofontdata/sound/0330_FluidR3_GM_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0330_GeneralUserGS_sf2_file.js"></script>
@@ -28,6 +37,7 @@
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_Aspirin_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_Chaos_sf2_file.js"></script>
 <script src="https://surikov.github.io/webaudiofontdata/sound/0250_Acoustic_Guitar_sf2_file.js"></script>
+<script src="https://surikov.github.io/webaudiofontdata/sound/0250_LK_AcousticSteel_SF2_file.js"></script>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
@@ -109,14 +119,23 @@
     <label class="toggle"><input type="checkbox" id="ensGuitar" checked>기타</label>
     <label class="toggle"><input type="checkbox" id="ensPad" checked>패드</label>
     <label class="toggle"><input type="checkbox" id="ensDrum" checked>드럼</label>
-    <label class="small" style="margin-left:auto;">기타 뱅크
+    <label class="small">기타 뱅크
       <select id="ensGuitarBank">
-        <option value="fluid" selected>FluidR3_GM</option>
+        <option value="lk" selected>LK_AcousticSteel</option>
+        <option value="fluid">FluidR3_GM</option>
         <option value="aspirin">Aspirin</option>
         <option value="jclive">JCLive</option>
         <option value="chaos">Chaos</option>
         <option value="gug">GeneralUserGS</option>
         <option value="acoustic">Acoustic_Guitar</option>
+      </select>
+    </label>
+    <label class="small">드럼 뱅크
+      <select id="ensDrumBank">
+        <option value="fluid" selected>FluidR3_GM</option>
+        <option value="jclive">JCLive</option>
+        <option value="chaos">Chaos</option>
+        <option value="sblive">SBLive</option>
       </select>
     </label>
   </div>
@@ -181,6 +200,19 @@
   <button id="drumBtn">재생</button>
 </div>
 
+<div class="card">
+  <div class="info">
+    <h2>드럼 — 다른 사운드뱅크 비교 (WebAudioFont)</h2>
+    <p>킥/스네어/하이햇을 전부 같은 사운드뱅크로 통일해서 4종을 비교합니다. (Aspirin/GeneralUserGS는 WebAudioFont에 드럼킷 샘플이 없어서 제외했습니다.)</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-drum-bank="jclive">JCLive</button>
+    <button data-drum-bank="fluid">FluidR3_GM</button>
+    <button data-drum-bank="chaos">Chaos</button>
+    <button data-drum-bank="sblive">SBLive</button>
+  </div>
+</div>
+
 <h2 class="section">어쿠스틱 기타</h2>
 <div class="card">
   <div class="info">
@@ -206,6 +238,7 @@
     <button data-guitar-bank="aspirin">Aspirin</button>
     <button data-guitar-bank="chaos">Chaos</button>
     <button data-guitar-bank="acoustic">Acoustic_Guitar</button>
+    <button data-guitar-bank="lk">LK_AcousticSteel</button>
   </div>
 </div>
 
@@ -262,10 +295,20 @@ const wafPlayer = new WebAudioFontPlayer();
 const DRUM = { kick: '_drum_35_17_JCLive_sf2_file', hihat: '_drum_42_1_JCLive_sf2_file', snare: '_drum_38_2_JCLive_sf2_file' };
 Object.values(DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
 
-// separate FluidR3_GM kit just for the "전체 합주" ensemble preview, so the
-// dedicated drum-comparison card above keeps demonstrating its JCLive takes
-const ENSEMBLE_DRUM = { kick: '_drum_35_0_FluidR3_GM_sf2_file', hihat: '_drum_42_0_FluidR3_GM_sf2_file', snare: '_drum_38_0_FluidR3_GM_sf2_file' };
-Object.values(ENSEMBLE_DRUM).forEach(name => wafPlayer.loader.decodeAfterLoading(ac, name));
+// full drum-kit sound banks (kick/snare/hihat all from the same sf2, variant
+// 0) for the bank-comparison card and the ensemble preview -- separate from
+// DRUM above, which is specifically JCLive with different per-note takes
+const DRUM_BANKS = {
+  jclive: { label: 'JCLive',     kick: '_drum_35_0_JCLive_sf2_file',     hihat: '_drum_42_0_JCLive_sf2_file',     snare: '_drum_38_0_JCLive_sf2_file' },
+  fluid:  { label: 'FluidR3_GM', kick: '_drum_35_0_FluidR3_GM_sf2_file', hihat: '_drum_42_0_FluidR3_GM_sf2_file', snare: '_drum_38_0_FluidR3_GM_sf2_file' },
+  chaos:  { label: 'Chaos',      kick: '_drum_35_0_Chaos_sf2_file',      hihat: '_drum_42_0_Chaos_sf2_file',      snare: '_drum_38_0_Chaos_sf2_file' },
+  sblive: { label: 'SBLive',     kick: '_drum_35_0_SBLive_sf2',          hihat: '_drum_42_0_SBLive_sf2',          snare: '_drum_38_0_SBLive_sf2' }
+};
+Object.values(DRUM_BANKS).forEach(b => {
+  wafPlayer.loader.decodeAfterLoading(ac, b.kick);
+  wafPlayer.loader.decodeAfterLoading(ac, b.hihat);
+  wafPlayer.loader.decodeAfterLoading(ac, b.snare);
+});
 
 // Different sf2 sound-bank recordings of the SAME GM program number, loaded
 // directly via WebAudioFont (bypassing soundfont-player, which only ships
@@ -284,7 +327,8 @@ const GUITAR_BANKS = {
   jclive:   { label: 'JCLive',          name: '_tone_0250_JCLive_sf2_file' },
   aspirin:  { label: 'Aspirin',         name: '_tone_0250_Aspirin_sf2_file' },
   chaos:    { label: 'Chaos',           name: '_tone_0250_Chaos_sf2_file' },
-  acoustic: { label: 'Acoustic_Guitar', name: '_tone_0250_Acoustic_Guitar_sf2_file' }
+  acoustic: { label: 'Acoustic_Guitar', name: '_tone_0250_Acoustic_Guitar_sf2_file' },
+  lk:       { label: 'LK_AcousticSteel', name: '_tone_0250_LK_AcousticSteel_SF2_file' }
 };
 Object.values(BASS_BANKS).forEach(b => wafPlayer.loader.decodeAfterLoading(ac, b.name));
 Object.values(GUITAR_BANKS).forEach(b => wafPlayer.loader.decodeAfterLoading(ac, b.name));
@@ -318,6 +362,16 @@ async function playDrums(btn) {
   setTimeout(() => { btn.disabled = false; }, 4500);
 }
 document.getElementById('drumBtn').addEventListener('click', (e) => playDrums(e.target));
+
+async function playDrumBank(bankKey, btn) {
+  btn.disabled = true;
+  if (ac.state === 'suspended') await ac.resume();
+  scheduleDrumPattern(ac.currentTime + 0.05, 2, DRUM_BANKS[bankKey]);
+  setTimeout(() => { btn.disabled = false; }, 4500);
+}
+document.querySelectorAll('button[data-drum-bank]').forEach(btn => {
+  btn.addEventListener('click', () => playDrumBank(btn.dataset.drumBank, btn));
+});
 
 // strum rhythm comparison -- same guitar tone (Steel, MusyngKite), 3
 // different eighth-note strum patterns, 2 bars each so the groove is clear.
@@ -584,6 +638,7 @@ async function playEnsemble(btn) {
   const wantPad = document.getElementById('ensPad').checked;
   const wantDrum = document.getElementById('ensDrum').checked;
   const guitarBankKey = document.getElementById('ensGuitarBank').value;
+  const drumBankKey = document.getElementById('ensDrumBank').value;
 
   statusEl.textContent = '악기 로딩 중...';
   const [salamander, strings] = await Promise.all([
@@ -627,8 +682,8 @@ async function playEnsemble(btn) {
     });
   }
 
-  // drums (2 bars, FluidR3_GM kit)
-  if (wantDrum) scheduleDrumPattern(now, 2, ENSEMBLE_DRUM);
+  // drums (2 bars, bank chosen via the dropdown)
+  if (wantDrum) scheduleDrumPattern(now, 2, DRUM_BANKS[drumBankKey]);
 
   setTimeout(() => { btn.disabled = false; }, 5000);
 }
